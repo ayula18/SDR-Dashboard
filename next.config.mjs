@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  async redirects() {
+    // The mock Pipeline page was replaced by Meetings.
+    return [{ source: '/pipeline', destination: '/meetings', permanent: false }];
+  },
 };
 
 export default nextConfig;
