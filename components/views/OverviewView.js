@@ -25,7 +25,7 @@ export default function OverviewView() {
   const leaderboard = useApi('/api/metrics/sdrs', apiParams);
   const programs = useApi('/api/metrics/programs', apiParams);
   const data = overview.data;
-  const grain = values.grain || data?.range?.grain || 'week';
+  const grain = data?.range?.grain || values.grain || 'week';
 
   const sdrColumns = [
     { key: 'name', label: 'SDR', sort: r => r.name, render: r => <Person name={r.name} color={teamColor(r.name)} href={withFilters(sdrHref(r.name))} size={22} /> },

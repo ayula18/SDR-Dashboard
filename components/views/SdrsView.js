@@ -57,7 +57,7 @@ export default function SdrsView() {
         description="Everyone running outreach, side by side. Rates are per lead contacted, and anyone under 100 contacted leads is flagged as a small sample."
         meta={<SyncStatus />}
       />
-      <FilterBar range={data?.range} hide={['sdr']} />
+      <FilterBar range={data?.range} hide={['sdr']} showGrain={false} />
       <WarningsBanner />
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <LoadingBlock />}

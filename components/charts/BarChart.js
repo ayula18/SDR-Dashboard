@@ -26,6 +26,9 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
   const xLabel = accessor(x);
   const ttLabel = tooltipLabel ? accessor(tooltipLabel) : xLabel;
   const hasData = data.length > 0 && series.length > 0;
+  // A hovered index can outlive its data: switch weekly to monthly under a resting pointer and the series gets shorter.
+  const inRange = i => (i != null && i < data.length ? i : null);
+  const current = inRange(active);
 
   const plotW = Math.max(40, width - PAD.left - PAD.right);
   const plotH = Math.max(40, height - PAD.top - PAD.bottom);
@@ -38,16 +41,16 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
   const barX = (i, si) => PAD.left + i * band + (band - groupW) / 2 + si * (barW + gap);
   const yAt = v => PAD.top + plotH - ((Number(v) || 0) / scale.max) * plotH;
   const stride = labelStride(data.length, plotW, 64);
-  const tipX = active != null ? PAD.left + active * band + band / 2 : 0;
+  const tipX = current != null ? PAD.left + current * band + band / 2 : 0;
 
   const onKeyDown = event => {
     if (!hasData) return;
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      setActive(i => Math.min(data.length - 1, (i ?? -1) + 1));
+      setActive(i => Math.min(data.length - 1, (inRange(i) ?? -1) + 1));
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      setActive(i => Math.max(0, (i ?? data.length) - 1));
+      setActive(i => Math.max(0, (inRange(i) ?? data.length) - 1));
     } else if (event.key === 'Escape') {
       setActive(null);
     }
@@ -72,7 +75,7 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
                 <text key={`x${i}`} className="axis-text" x={PAD.left + i * band + band / 2} y={height - 6} textAnchor="middle">{xLabel(d)}</text>
               ) : null))}
               {data.map((d, i) => (
-                <g key={`b${i}`} opacity={active != null && active !== i ? 0.45 : 1}>
+                <g key={`b${i}`} opacity={current != null && current !== i ? 0.45 : 1}>
                   {series.map((s, si) => {
                     const h = ((Number(d[s.key]) || 0) / scale.max) * plotH;
                     return <path key={s.key} d={columnPath(barX(i, si), PAD.top + plotH - h, barW, h)} fill={s.color} />;
@@ -83,16 +86,16 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
                 <rect key={`h${i}`} x={PAD.left + i * band} y={PAD.top} width={band} height={plotH} fill="transparent" onPointerEnter={() => setActive(i)} />
               ))}
             </svg>
-            {active != null && (
+            {current != null && (
               <div
                 className="chart-tooltip viz-tooltip"
                 style={{ left: tipX, top: 0, transform: `translateX(${tipX > width * 0.6 ? 'calc(-100% - 12px)' : '12px'})` }}
               >
-                <div className="tt-title">{ttLabel(data[active])}</div>
+                <div className="tt-title">{ttLabel(data[current])}</div>
                 {series.map(s => (
                   <div key={s.key} className="tt-row">
                     <span className="tt-key" style={{ background: s.color }} />
-                    <strong>{format(data[active][s.key])}</strong>
+                    <strong>{format(data[current][s.key])}</strong>
                     <span>{s.label}</span>
                   </div>
                 ))}

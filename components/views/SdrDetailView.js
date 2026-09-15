@@ -26,7 +26,7 @@ export default function SdrDetailView({ name }) {
     return rest;
   }, [apiParams]);
   const { data, error, loading, refreshing, reload } = useApi(`/api/metrics/sdrs/${encodeURIComponent(name)}`, params);
-  const grain = values.grain || data?.range?.grain || 'week';
+  const grain = data?.range?.grain || values.grain || 'week';
   const works = data?.whatWorks;
   const rateDetail = r => `${fmtInt(r.positive)} of ${fmtInt(r.contacted)}`;
 

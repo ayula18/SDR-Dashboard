@@ -72,16 +72,26 @@ export function ProgramLead({ name, range, summary, channel, companies }) {
   );
 }
 
-/** Touched → replied → positive → meeting → pipeline, counted by company. Steps with a list open it. */
-export function CompanyFunnel({ summary, channel, range, onOpenList }) {
+/**
+ * Touchpoints → unique companies → replied → positive → meeting → pipeline.
+ * Touchpoints count what went out (emails, invites, messages); every later step
+ * counts companies. Steps with a list open it.
+ */
+export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpenList }) {
   const both = channel === 'both';
   const split = key => (both ? `${fmtInt(summary.email[key])} email, ${fmtInt(summary.linkedin[key])} LinkedIn` : null);
+  const emails = email?.emailsSent || 0;
+  const invites = linkedin?.invitesSent || 0;
+  const messages = linkedin?.messagesSent || 0;
+  const touchNote = [email && plural(emails, 'email'), linkedin && plural(invites, 'invite'), linkedin && plural(messages, 'message')].filter(Boolean).join(', ');
   const steps = [
-    { key: 'touched', label: 'Touched', value: summary.total, count: summary.total, note: split('touched') },
-    { key: 'replied', label: 'Replied', value: summary.replied, count: summary.replied, note: split('replied'), list: 'replied' },
-    { key: 'positive', label: 'Positive', value: summary.positive, count: summary.positive, note: split('positive'), list: 'positive' },
+    { key: 'touches', label: 'Touchpoints', value: emails + invites + messages, note: touchNote },
+    // The channel counts overlap, so say how many were reached on both.
+    { key: 'companies', label: 'Unique companies', value: summary.total, count: summary.total, note: both ? `${split('touched')}, ${fmtInt(summary.both)} on both` : null, list: 'companies' },
+    { key: 'replied', label: 'Replied', value: summary.replied, count: summary.replied, note: split('replied'), list: 'replied', converts: true },
+    { key: 'positive', label: 'Positive', value: summary.positive, count: summary.positive, note: split('positive'), list: 'positive', converts: true },
     {
-      key: 'meeting', label: 'Meeting', value: summary.withMeeting, count: summary.withMeeting, list: 'meeting',
+      key: 'meeting', label: 'Meeting', value: summary.withMeeting, count: summary.withMeeting, list: 'meeting', converts: true,
       note: summary.meetings ? `${plural(summary.meetings, 'meeting')}, ${fmtInt(summary.held)} held` : null,
     },
     {
@@ -92,14 +102,14 @@ export function CompanyFunnel({ summary, channel, range, onOpenList }) {
 
   return (
     <Card
-      title="Companies"
+      title="Funnel"
       subtitle={range.sinceStart
-        ? 'Every company this program has touched, and how far each has got. Open a step to see which companies.'
-        : 'Companies touched in this range, and how far each has got since. Open a step to see which companies.'}
+        ? 'Every touch this program has sent, the unique companies it reached, and how far each has got. Open a step to see which companies.'
+        : 'Touches sent in this range, the unique companies they reached, and how far each has got since. Open a step to see which companies.'}
     >
       <ol className="stepper">
         {steps.map((step, i) => {
-          const previous = i > 0 && i < 4 ? steps[i - 1].count : null;
+          const previous = step.converts ? steps[i - 1].count : null;
           const conversion = previous ? (step.count / previous) * 100 : null;
           const clickable = step.list && step.count > 0;
           const body = (
@@ -299,6 +309,7 @@ export function bySdrColumns({ channel, teamColor, withFilters }) {
 }
 
 const LISTS = {
+  companies: { title: 'Unique companies touched', test: () => true, quote: () => true },
   replied: { title: 'Companies that replied', test: c => c.replied > 0, quote: () => true },
   positive: { title: 'Companies with a positive reply', test: c => c.positive > 0, quote: r => POSITIVE.includes(r.verdict) },
   meeting: { title: 'Companies with a meeting', test: c => c.meetings > 0, quote: () => true },

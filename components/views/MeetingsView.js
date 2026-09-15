@@ -32,7 +32,7 @@ export default function MeetingsView() {
   const programName = useProgramName();
   const channel = get('channel');
   const { data, error, loading, refreshing, reload } = useApi('/api/metrics/meetings', { ...apiParams, channel });
-  const grain = values.grain || data?.range?.grain || 'week';
+  const grain = data?.range?.grain || values.grain || 'week';
   const totals = data?.totals;
   const channels = data?.channels || (channel ? [channel] : []);
   const series = [

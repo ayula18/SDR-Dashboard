@@ -97,14 +97,16 @@ A program page answers one question first: what did this program reach on email 
 and what came of it?
 
 - **Range.** It opens on everything since the program's first campaign ("Since start"), with a
-  monthly trend once that is more than about four months. Pick a week or month range to see that
-  slice against the one before.
+  monthly trend once that is more than about four months. Pick a week or month range, or a custom
+  range, to see that slice against the one before.
 - **Both, Email or LinkedIn.** The toggle filters every number, table and chart, and stays in the link.
-- **Companies funnel.** Companies touched in the range, then how many replied, were positive and
-  took a meeting, and the qualified pipeline from those meetings. Touched means an email lead loaded
-  before the range ended and last emailed after it began, or a LinkedIn person added before it
-  ended whom HeyReach last invited or messaged after it began. A company's replies and meetings
-  count whenever they came after its first touch, so each step is part of the one before.
+- **Funnel.** Touchpoints first: emails sent plus LinkedIn invites and messages in the range. Then
+  the unique companies touched (by channel, and how many were reached on both), how many replied,
+  were positive and took a meeting, and the qualified pipeline from those meetings. Touched means an
+  email lead loaded before the range ended and last emailed after it began, or a LinkedIn person
+  added before it ended whom HeyReach last invited or messaged after it began. A company's replies
+  and meetings count whenever they came after its first touch, so each company step is part of the
+  one before.
 - **Channel cards.** What went out in the range (Instantly and HeyReach volumes) and the people who
   replied in it (reply labels), with the change against the previous range.
 - **Conversations.** Opening a company, a funnel step or a reply shows every message sent to that
@@ -147,9 +149,11 @@ and what came of it?
 - **Meeting attribution**: the campaign that loaded a lead at the same company in the 180 days
   before the meeting, preferring leads that replied. A LinkedIn campaign counts meetings at the
   companies it reached within 180 days of adding the first person there.
-- **Ranges**: whole weeks (Monday start) or months. The comparison is the previous range of the
-  same length. While a range is still running, date-based numbers use the same elapsed days
-  and platform volumes are pro-rated.
+- **Ranges**: whole weeks (Monday start) or months. A custom range rounds out to whole weeks, or to
+  whole months when it starts on the 1st and spans a month or more, because platform volumes are
+  stored per week and month. The comparison is the previous range of the same length. While a
+  range is still running, date-based numbers use the same elapsed days and platform volumes are
+  pro-rated.
 - **Cohort views** (What's Working, coverage) follow leads loaded in the range to whatever happened
   later. Rates under 100 contacted leads are flagged `lowSample`.
 

@@ -45,7 +45,7 @@ export default function ProgramDetailView({ slug }) {
     fromList,
   }), []);
 
-  const grain = values.grain || data?.range?.grain || 'week';
+  const grain = data?.range?.grain || values.grain || 'week';
   const program = data?.program;
   const summary = data?.companySummary;
   const empty = data && data.companies.length === 0 && data.campaigns.length === 0;
@@ -80,7 +80,7 @@ export default function ProgramDetailView({ slug }) {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <ProgramLead name={program.name} range={data.range} summary={summary} channel={view} companies={data.companies} />
 
-          <CompanyFunnel summary={summary} channel={view} range={data.range} onOpenList={openList} />
+          <CompanyFunnel summary={summary} channel={view} range={data.range} email={data.email} linkedin={data.linkedin} onOpenList={openList} />
 
           {view === 'both' ? (
             <div className="grid-2">

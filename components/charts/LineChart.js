@@ -20,6 +20,9 @@ export default function LineChart({ data = [], x = 'label', tooltipLabel, series
   const xLabel = accessor(x);
   const ttLabel = tooltipLabel ? accessor(tooltipLabel) : xLabel;
   const hasData = data.length > 0 && series.length > 0;
+  // A hovered index can outlive its data: switch weekly to monthly under a resting pointer and the series gets shorter.
+  const inRange = i => (i != null && i < data.length ? i : null);
+  const current = inRange(active);
 
   const plotW = Math.max(40, width - PAD.left - PAD.right);
   const plotH = Math.max(40, height - PAD.top - PAD.bottom);
@@ -40,18 +43,18 @@ export default function LineChart({ data = [], x = 'label', tooltipLabel, series
     if (!hasData) return;
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      setActive(i => Math.min(data.length - 1, (i ?? -1) + 1));
+      setActive(i => Math.min(data.length - 1, (inRange(i) ?? -1) + 1));
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      setActive(i => Math.max(0, (i ?? data.length) - 1));
+      setActive(i => Math.max(0, (inRange(i) ?? data.length) - 1));
     } else if (event.key === 'Escape') {
       setActive(null);
     }
   };
 
   const path = key => data.map((d, i) => `${i ? 'L' : 'M'}${xAt(i).toFixed(1)},${yAt(d[key]).toFixed(1)}`).join('');
-  const marker = active ?? data.length - 1;
-  const tipX = active != null ? xAt(active) : 0;
+  const marker = current ?? data.length - 1;
+  const tipX = current != null ? xAt(current) : 0;
 
   return (
     <div ref={ref} className="chart" tabIndex={hasData ? 0 : -1} onKeyDown={onKeyDown} onBlur={() => setActive(null)}>
@@ -96,23 +99,23 @@ export default function LineChart({ data = [], x = 'label', tooltipLabel, series
               {series.map(s => (
                 <path key={s.key} d={path(s.key)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
               ))}
-              {active != null && (
-                <line x1={xAt(active)} x2={xAt(active)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--viz-axis)" strokeWidth="1" shapeRendering="crispEdges" />
+              {current != null && (
+                <line x1={xAt(current)} x2={xAt(current)} y1={PAD.top} y2={PAD.top + plotH} stroke="var(--viz-axis)" strokeWidth="1" shapeRendering="crispEdges" />
               )}
               {series.map(s => (
                 <circle key={s.key} cx={xAt(marker)} cy={yAt(data[marker][s.key])} r="4" fill={s.color} stroke="var(--bg-surface)" strokeWidth="2" />
               ))}
             </svg>
-            {active != null && (
+            {current != null && (
               <div
                 className="chart-tooltip viz-tooltip"
                 style={{ left: tipX, top: 0, transform: `translateX(${tipX > width * 0.6 ? 'calc(-100% - 12px)' : '12px'})` }}
               >
-                <div className="tt-title">{ttLabel(data[active])}</div>
+                <div className="tt-title">{ttLabel(data[current])}</div>
                 {series.map(s => (
                   <div key={s.key} className="tt-row">
                     <span className="tt-key" style={{ background: s.color }} />
-                    <strong>{format(data[active][s.key])}</strong>
+                    <strong>{format(data[current][s.key])}</strong>
                     <span>{s.label}</span>
                   </div>
                 ))}
