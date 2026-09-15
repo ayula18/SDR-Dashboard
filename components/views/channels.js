@@ -13,7 +13,7 @@ export const CHANNELS = {
   linkedin: { label: 'LinkedIn only', tone: 'neutral' },
 };
 
-const STAGES = {
+export const STAGES = {
   meeting: { label: 'Meeting', tone: 'accent', rank: 7 },
   positive: { label: 'Positive reply', tone: 'good', rank: 6 },
   replied: { label: 'Replied', tone: 'neutral', rank: 5 },

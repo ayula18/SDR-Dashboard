@@ -32,6 +32,7 @@ const PERIOD_PHRASES = {
   'last-month': 'last month',
   'last-3-months': 'in the last 3 months',
   ytd: 'so far this year',
+  'since-start': 'since the first campaign',
 };
 export const periodPhrase = range => PERIOD_PHRASES[range?.preset] || 'in this range';
 
@@ -449,7 +450,8 @@ export function accountColumns() {
   ];
 }
 
-export function ReplyFeed({ replies = [] }) {
+/** Replies with what they said. With `onOpen`, a reply whose company is known opens that company's conversation. */
+export function ReplyFeed({ replies = [], onOpen }) {
   if (!replies.length) {
     return (
       <EmptyState inline title="No replies yet">
@@ -461,16 +463,21 @@ export function ReplyFeed({ replies = [] }) {
     <ul className="feed">
       {replies.map((r, i) => {
         const verdict = VERDICTS[r.verdict] || VERDICTS.unknown;
+        const quote = <span className="feed-quote">{r.quote ? `“${r.quote}”` : <span className="muted">No text in the reply</span>}</span>;
+        const sub = <span className="feed-sub">{[r.name, r.domain, r.campaign].filter(Boolean).join(', ')}</span>;
         return (
           <li key={`${r.repliedAt}-${i}`}>
             <div className="feed-meta">
               <span>{fmtDate(r.repliedAt, { year: true })}</span>
               <Badge tone={verdict.tone} title={r.reason || undefined}>{verdict.label}</Badge>
             </div>
-            <div>
-              <div className="feed-quote">{r.quote ? `“${r.quote}”` : <span className="muted">No text in the reply</span>}</div>
-              <div className="feed-sub">{[r.name, r.domain, r.campaign].filter(Boolean).join(', ')}</div>
-            </div>
+            {onOpen && r.companyKey ? (
+              <button type="button" className="feed-open" onClick={() => onOpen(r)} aria-label={`Open the conversation with ${r.domain || r.name}`}>
+                {quote}{sub}
+              </button>
+            ) : (
+              <div className="feed-body">{quote}{sub}</div>
+            )}
           </li>
         );
       })}

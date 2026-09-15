@@ -91,6 +91,28 @@ program pages lead with one row per company, email and LinkedIn side by side.
 - **A LinkedIn reply belongs to the latest campaign that added its writer before it came in**, so
   someone in two campaigns is not counted as replying twice.
 
+## Program pages
+
+A program page answers one question first: what did this program reach on email and LinkedIn,
+and what came of it?
+
+- **Range.** It opens on everything since the program's first campaign ("Since start"), with a
+  monthly trend once that is more than about four months. Pick a week or month range to see that
+  slice against the one before.
+- **Both, Email or LinkedIn.** The toggle filters every number, table and chart, and stays in the link.
+- **Companies funnel.** Companies touched in the range, then how many replied, were positive and
+  took a meeting, and the qualified pipeline from those meetings. Touched means an email lead loaded
+  before the range ended and last emailed after it began, or a LinkedIn person added before it
+  ended whom HeyReach last invited or messaged after it began. A company's replies and meetings
+  count whenever they came after its first touch, so each step is part of the one before.
+- **Channel cards.** What went out in the range (Instantly and HeyReach volumes) and the people who
+  replied in it (reply labels), with the change against the previous range.
+- **Conversations.** Opening a company, a funnel step or a reply shows every message sent to that
+  company's people and every reply, with its label and the reason for it. The text is read live
+  from the AI SDR archive (`ctx_events`) and never copied into `dash_*` tables. Sequence emails are
+  archived without their text, so each shows its step's copy from Instantly, which the campaign
+  sync keeps to 400 characters. Emails an SDR writes by hand in Instantly are archived without text.
+
 ## Definitions
 
 - **Leads contacted**: leads emailed for the first time in the period (Instantly's new leads contacted).
@@ -147,7 +169,8 @@ All endpoints require a session and return JSON. Shared query params:
 | `GET /api/metrics/campaigns?show=&q=&platform=` | Campaigns on both channels with companies, whole-campaign results and activity in the range. `show`: `active` (default), `current` (running or active in range), `running`, `all` |
 | `GET /api/metrics/campaigns/:id` | Email: funnel, weekly trend, steps with copy, replies, accounts, meetings. LinkedIn: people and company funnels, companies, senders, replies |
 | `GET /api/metrics/programs` | Every program's volume, lead and account funnels, period change |
-| `GET /api/metrics/programs/:slug?since=` | Companies across both channels, campaigns, funnels, trend, by SDR, meetings, replies |
+| `GET /api/metrics/programs/:slug?channel=` | One program for a range (default `since-start`: since its first campaign) and a channel (`both`, `email`, `linkedin`): company funnel, email and LinkedIn activity with change, companies, campaigns, trend, by SDR, meetings, replies |
+| `GET /api/metrics/conversations?company=&program=&channel=` | One company's messages and replies on both channels, read live from the AI SDR archive. `company` is a domain, or `name:<company key>` for a LinkedIn company with no domain |
 | `GET /api/metrics/meetings?channel=` | Totals, breakdowns (channel, SDR, program, segment, size, OSS), trend, list |
 | `GET /api/metrics/insights` | SDR × theme matrix, firmographics, sequence steps, best copy, LinkedIn by sender |
 | `GET /api/metrics/coverage?q=` | Allocation by load week and SDR, re-loaded and shared accounts, account table |
@@ -178,5 +201,4 @@ Admin only:
 - The people in paused and finished HeyReach campaigns keep the status they had when last read;
   invites accepted after a campaign stops only show in the campaign totals from `heyreach`.
 - Meetings are imported from a CSV. Pointing the importer at the live Google Sheet needs its ID.
-- No campaign names match Website De-anon in 2026 yet. Adjust its pattern once campaigns are named.
 # SDR-Dashboard

@@ -5,12 +5,16 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Download, Search } f
 import { downloadCsv } from '@/lib/client/format';
 
 const cellValue = (column, row) => (column.csv ? column.csv(row) : row[column.key]);
+const INTERACTIVE = 'a, button, input, select, textarea, label';
 
 /**
  * Sortable table with optional search, paging and CSV export.
  *
  * columns: [{ key, label, align?: 'right', render?(row), sort?(row), csv?(row) | false, sortable? }]
  * `csv` is also what search matches against, so give link and badge columns one.
+ * `onRowClick(row)` makes rows open something (Enter or Space from the keyboard);
+ * clicks on links and buttons inside a row still do their own thing. `activeKey`
+ * marks the row whose details are open.
  */
 export default function DataTable({
   columns,
@@ -24,6 +28,9 @@ export default function DataTable({
   empty = 'Nothing in this range.',
   toolbar,
   dense = false,
+  onRowClick,
+  rowLabel,
+  activeKey = null,
 }) {
   const [sort, setSort] = useState(initialSort);
   const [query, setQuery] = useState('');
@@ -69,6 +76,26 @@ export default function DataTable({
     })),
     sorted
   );
+
+  const rowProps = (row, key) => {
+    if (!onRowClick) return {};
+    const label = rowLabel ? rowLabel(row) : undefined;
+    return {
+      className: `dt-clickable${activeKey != null && key === activeKey ? ' dt-active' : ''}`,
+      tabIndex: 0,
+      title: label,
+      'aria-label': label,
+      onClick: e => {
+        if (!e.target.closest(INTERACTIVE)) onRowClick(row);
+      },
+      onKeyDown: e => {
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onRowClick(row);
+        }
+      },
+    };
+  };
 
   return (
     <div className="dt">
@@ -124,15 +151,18 @@ export default function DataTable({
           <tbody>
             {visible.length === 0 ? (
               <tr><td colSpan={columns.length} className="dt-empty">{query ? 'No rows match that search.' : empty}</td></tr>
-            ) : visible.map((row, i) => (
-              <tr key={rowKey(row, i)}>
-                {columns.map(c => (
-                  <td key={c.key} className={c.align === 'right' ? 'num' : undefined}>
-                    {c.render ? c.render(row) : (row[c.key] ?? '–')}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            ) : visible.map((row, i) => {
+              const key = rowKey(row, i);
+              return (
+                <tr key={key} {...rowProps(row, key)}>
+                  {columns.map(c => (
+                    <td key={c.key} className={c.align === 'right' ? 'num' : undefined}>
+                      {c.render ? c.render(row) : (row[c.key] ?? '–')}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

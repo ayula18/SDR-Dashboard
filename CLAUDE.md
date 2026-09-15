@@ -17,3 +17,4 @@
 - HeyReach is read-only and throttled to ~100 requests/min in `lib/outreach/heyreach.js`; keep every HeyReach call a read. `heyreach-leads` stores each campaign's people in `dash_linkedin_leads`, re-reading a campaign only while it runs or when its status changes.
 - Companies across channels: a LinkedIn person's company is resolved to a domain by `lib/outreach/linkedin.js`; admin mappings in `dash_company_aliases` override it through `dash_v_linkedin_leads`. The company is the unit email and LinkedIn share.
 - Views live in `900_dash_views.sql`, which is re-applied on every migrate and sorts after every table migration.
+- Program pages (`getProgramDetail`) default to everything since the program's first campaign and take `channel` (both | email | linkedin). Conversations (`lib/metrics/conversation.js`) read message text from `ctx_events` when someone opens one; never copy that text into `dash_*` tables.

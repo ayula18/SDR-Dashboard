@@ -7,9 +7,11 @@ import { RANGE_OPTIONS, useFilters } from '@/lib/client/use-filters';
 /**
  * The single filter row above a page's content. Date range first, then trend
  * grain, then who and what. The selection lives in the URL, and everything
- * below re-renders against the same slice.
+ * below re-renders against the same slice. `leading` goes before the date
+ * range; `extraRanges` adds page-specific range options, such as a program's
+ * "Since start".
  */
-export default function FilterBar({ range, hide = [], defaultRange = 'last-4-weeks', showGrain = true, children }) {
+export default function FilterBar({ range, hide = [], defaultRange = 'last-4-weeks', extraRanges = [], showGrain = true, leading, children }) {
   const { meta } = useDashboard();
   const { values, setParams } = useFilters({ defaultRange });
   const custom = Boolean(values.from);
@@ -18,6 +20,8 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
 
   return (
     <div className="filters" role="group" aria-label="Filters">
+      {leading}
+
       <select
         aria-label="Date range"
         className="select-trigger"
@@ -25,7 +29,7 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
         onChange={e => setParams({ range: e.target.value === defaultRange ? null : e.target.value, from: null, to: null })}
       >
         {custom && <option value="custom">Custom range</option>}
-        {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {[...extraRanges, ...RANGE_OPTIONS].map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
 
       {showGrain && (
@@ -65,7 +69,7 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
         <button
           type="button"
           className="filters-reset"
-          onClick={() => setParams({ range: null, from: null, to: null, grain: null, sdr: null, program: null, theme: null })}
+          onClick={() => setParams({ range: null, from: null, to: null, grain: null, sdr: null, program: null, theme: null, channel: null })}
         >
           Reset filters
         </button>
@@ -73,7 +77,9 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
 
       {range && (
         <span className="filters-dates">
-          {fmtDateRange(range.from, range.to)}{range.inProgress ? ' so far' : ''}, compared with {fmtDateRange(range.previous.from, range.previous.to)}
+          {range.preset === 'since-start'
+            ? `${fmtDateRange(range.from, range.to)}, since the first campaign`
+            : `${fmtDateRange(range.from, range.to)}${range.inProgress ? ' so far' : ''}, compared with ${fmtDateRange(range.previous.from, range.previous.to)}`}
         </span>
       )}
     </div>
