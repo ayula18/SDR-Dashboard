@@ -90,32 +90,6 @@ SELECT
   (base.reply_count > 0 AND NOT base.auto_only AND NOT base.negative_signal AND base.positive_signal)  AS positive
 FROM base;
 
--- Meetings attributed to the campaign that most plausibly produced them: a
--- lead at the same company loaded in the 180 days before the meeting,
--- preferring leads that replied.
-CREATE VIEW dash_v_meetings AS
-SELECT
-  m.*,
-  a.campaign_id,
-  a.campaign_name,
-  a.sdr     AS campaign_sdr,
-  a.program,
-  a.theme,
-  COALESCE(m.sdr_name, CASE WHEN m.channel ILIKE 'sdr%' THEN a.sdr END) AS attributed_sdr,
-  (lower(m.happened) = 'yes') AS did_happen
-FROM dash_meetings m
-LEFT JOIN LATERAL (
-  SELECT l.campaign_id, c.name AS campaign_name, c.sdr, c.program, c.theme
-    FROM dash_leads l
-    JOIN dash_v_campaigns c ON c.id = l.campaign_id AND NOT c.excluded
-   WHERE m.company_domain IS NOT NULL
-     AND m.meeting_date IS NOT NULL
-     AND l.company_domain = m.company_domain
-     AND l.created_at_src <  (m.meeting_date + 1)
-     AND l.created_at_src >= (m.meeting_date - 180)
-   ORDER BY (l.reply_count > 0) DESC, l.last_reply_at DESC NULLS LAST, l.created_at_src DESC
-   LIMIT 1
-) a ON TRUE;
 
 -- LinkedIn people in HeyReach campaigns (006_dash_linkedin_leads.sql), with admin
 -- company mappings applied and what came of each person. Email's rules where they
@@ -186,3 +160,53 @@ SELECT
   (base.replied AND base.any_negative)                                               AS negative,
   (base.replied AND NOT base.any_negative AND base.any_positive)                     AS positive
 FROM base;
+
+-- Meetings from both sources, joined to the outreach that earned them.
+--   'slack'  the booking bot's alert, in the archive the morning after it is booked
+--   'sheet'  the qualified-meetings audit, which alone carries qualified and deal value
+-- When both describe the same company within three days, the sheet's row is kept,
+-- so a meeting is never counted twice. Attribution looks for the campaign that
+-- reached the company in the 180 days before: an emailed lead or a LinkedIn
+-- person, preferring whoever replied, then whoever was reached most recently.
+CREATE VIEW dash_v_meetings AS
+SELECT
+  m.*,
+  a.campaign_id,
+  a.campaign_name,
+  a.sdr     AS campaign_sdr,
+  a.program,
+  a.theme,
+  COALESCE(m.sdr_name, CASE WHEN m.channel ILIKE 'sdr%' THEN a.sdr END) AS attributed_sdr,
+  (lower(m.happened) = 'yes') AS did_happen
+FROM dash_meetings m
+LEFT JOIN LATERAL (
+  SELECT x.campaign_id, x.campaign_name, x.sdr, x.program, x.theme
+    FROM (
+      SELECT l.campaign_id, c.name AS campaign_name, c.sdr, c.program, c.theme,
+             (l.reply_count > 0) AS replied, l.last_reply_at, l.created_at_src AS reached_at
+        FROM dash_leads l
+        JOIN dash_v_campaigns c ON c.id = l.campaign_id AND NOT c.excluded
+       WHERE l.company_domain = m.company_domain
+         AND l.created_at_src <  (m.meeting_date + 1)
+         AND l.created_at_src >= (m.meeting_date - 180)
+      UNION ALL
+      SELECT l.campaign_id, l.campaign_name, l.sdr, l.program, l.theme,
+             l.replied, l.last_reply_at, l.added_at
+        FROM dash_v_linkedin_leads l
+       WHERE l.company_domain = m.company_domain AND NOT l.excluded AND l.reached
+         AND l.added_at <  (m.meeting_date + 1)
+         AND l.added_at >= (m.meeting_date - 180)
+    ) x
+   WHERE m.company_domain IS NOT NULL AND m.meeting_date IS NOT NULL
+   ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC
+   LIMIT 1
+) a ON TRUE
+WHERE m.source <> 'slack'
+   OR NOT EXISTS (
+     SELECT 1
+       FROM dash_meetings sheet
+      WHERE sheet.source = 'sheet'
+        AND sheet.company_domain IS NOT NULL
+        AND sheet.company_domain = m.company_domain
+        AND sheet.meeting_date BETWEEN m.meeting_date - 3 AND m.meeting_date + 3
+   );

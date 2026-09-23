@@ -1,7 +1,7 @@
 # SDR Command Center
 
 Outreach analytics for the Reo.Dev GTM team: Instantly and HeyReach activity, the
-meetings audit sheet, and allocation, analysed by SDR, program, company, message angle
+meetings as they are booked, and allocation, analysed by SDR, program, company, message angle
 and segment, week on week and month on month.
 
 ## Setup
@@ -36,7 +36,8 @@ you in here.
 | LinkedIn people in each campaign: company, title, sender, invite, message and reply status | HeyReach campaign leads | `heyreach-leads` |
 | Replies and their text | The AI SDR app's Instantly and HeyReach syncs, archived in `ctx_events` | `reply-verdicts` (reads the archive) |
 | Reply labels | GPT-4.1 mini on Azure reads each reply's own words from `ctx_events` (keyword rules until then) | `reply-classify` |
-| Meetings booked, held, qualified, deal value | "Qualified Meetings 2026 - Happened Audit" CSV | `meetings-csv` / admin import |
+| Meetings as they are booked, and whether they happened | The booking bot's Slack alert, archived in `ctx_events` (Fireflies and HubSpot meetings confirm it happened) | `meetings-slack` (reads the archive) |
+| Qualified and deal value on those meetings | "Qualified Meetings 2026 - Happened Audit" CSV | `meetings-csv` / admin import |
 
 **Who pulls what.** Each kind of data is pulled by one app, and both apps can read everything.
 
@@ -101,7 +102,7 @@ and what came of it?
   range, to see that slice against the one before.
 - **Both, Email or LinkedIn.** The toggle filters every number, table and chart, and stays in the link.
 - **Funnel.** Touchpoints first: emails sent plus LinkedIn invites and messages in the range. Then
-  the unique companies touched (by channel, and how many were reached on both), how many replied,
+  the unique companies touched (split into email only, LinkedIn only and both, so the parts add up), how many replied,
   were positive and took a meeting, and the qualified pipeline from those meetings. Touched means an
   email lead loaded before the range ended and last emailed after it began, or a LinkedIn person
   added before it ended whom HeyReach last invited or messaged after it began. A company's replies
@@ -144,11 +145,15 @@ and what came of it?
 - **Company stage**: the furthest a company got on either channel, best first: meeting, positive
   reply, replied (no clear yes or no), connected on LinkedIn, contacted, said no (everyone who
   replied said no), not contacted.
-- **Meetings**: rows in the audit sheet, dated by meeting date. **Held** = audited "Yes".
-  Outreach views count outbound meetings plus any meeting attributed to a campaign.
-- **Meeting attribution**: the campaign that loaded a lead at the same company in the 180 days
-  before the meeting, preferring leads that replied. A LinkedIn campaign counts meetings at the
-  companies it reached within 180 days of adding the first person there.
+- **Meetings**: every booking the Slack alert announces, read daily from the AI SDR archive, plus
+  the qualified-meetings audit sheet, which alone carries qualified and deal value. When both
+  describe the same company within three days the sheet's row is kept, so nothing counts twice.
+  **Held** = the sheet audited it "Yes", or a Fireflies or HubSpot meeting at that company sits
+  within a day of the booked slot. Outreach views count outbound meetings plus any meeting
+  attributed to a campaign.
+- **Meeting attribution**: the campaign that reached the company in the 180 days before the
+  meeting, an emailed lead or a LinkedIn person, preferring whoever replied and then whoever was
+  reached most recently.
 - **Ranges**: whole weeks (Monday start) or months. A custom range rounds out to whole weeks, or to
   whole months when it starts on the 1st and spans a month or more, because platform volumes are
   stored per week and month. The comparison is the previous range of the same length. While a

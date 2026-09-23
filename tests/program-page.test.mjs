@@ -26,6 +26,14 @@ test('company funnel: counts companies overall and per channel, with pipeline', 
   assert.deepEqual([s.total, s.replied, s.positive, s.withMeeting, s.pipeline, s.withoutDomain], [3, 2, 1, 1, 5000, 1]);
   assert.deepEqual(s.email, { touched: 2, replied: 1, positive: 0 });
   assert.deepEqual(s.linkedin, { touched: 2, replied: 2, positive: 1 });
+  // The channel parts add up to each step, where the per-channel counts above overlap.
+  assert.deepEqual(s.split.touched, { emailOnly: 1, linkedinOnly: 1, both: 1 });
+  assert.deepEqual(s.split.replied, { emailOnly: 0, linkedinOnly: 1, both: 1 });
+  assert.deepEqual(s.split.positive, { emailOnly: 0, linkedinOnly: 1, both: 0 });
+  for (const [key, total] of [['touched', s.total], ['replied', s.replied], ['positive', s.positive]]) {
+    const m = s.split[key];
+    assert.equal(m.emailOnly + m.linkedinOnly + m.both, total, key);
+  }
 });
 
 test('conversation: Instantly step ids are sequence, step and variant', () => {

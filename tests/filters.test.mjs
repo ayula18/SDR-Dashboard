@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveRange, trailingPeriods } from '../lib/metrics/filters.js';
+import { Params, scope } from '../lib/metrics/sql.js';
+import { parseFilters, resolveRange, trailingPeriods } from '../lib/metrics/filters.js';
 import { isoDay, isoWeek, periodLabel, weekStart } from '../lib/outreach/dates.js';
 
 const THU_10_SEP = new Date(Date.UTC(2026, 8, 10));
@@ -57,4 +58,20 @@ test('custom ranges snap to whole months or weeks', () => {
 test('trailing periods end with the period containing the date', () => {
   assert.deepEqual(trailingPeriods('week', '2026-09-10', 3), ['2026-08-24', '2026-08-31', '2026-09-07']);
   assert.deepEqual(trailingPeriods('month', '2026-09-10', 2), ['2026-08-01', '2026-09-01']);
+});
+
+test('filters: several SDRs can be picked at once, and duplicates collapse', () => {
+  assert.deepEqual(parseFilters(new URLSearchParams('sdr=Akhil, Dheeraj,Akhil')).sdr, ['Akhil', 'Dheeraj']);
+  assert.equal(parseFilters(new URLSearchParams('sdr=')).sdr, null);
+  assert.equal(parseFilters(new URLSearchParams('sdr=all')).sdr, null);
+});
+
+test('filters: one SDR filters by equality, several by list', () => {
+  const one = new Params();
+  assert.match(scope('campaign', 'c', { sdr: ['Akhil'] }, one), /c\.sdr = \$1$/);
+  assert.deepEqual(one.values, ['Akhil']);
+
+  const many = new Params();
+  assert.match(scope('campaign', 'c', { sdr: ['Akhil', 'Dheeraj'] }, many), /c\.sdr = ANY\(\$1::text\[\]\)$/);
+  assert.deepEqual(many.values, [['Akhil', 'Dheeraj']]);
 });

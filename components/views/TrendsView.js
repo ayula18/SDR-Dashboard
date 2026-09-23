@@ -113,7 +113,7 @@ export default function TrendsView() {
             <Card title={`Replies per ${unit}`} subtitle="Human replies, by the date they came in. Out-of-office replies are left out." table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.replies} />}>
               <LineChart data={rows} x={x} tooltipLabel={tip} series={series.replies} label={`Replies per ${unit}`} />
             </Card>
-            <Card title={`Meetings per ${unit}`} subtitle="Outbound meetings from the audit sheet, by meeting date." table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.meetings} />}>
+            <Card title={`Meetings per ${unit}`} subtitle="Outbound meetings by meeting date, from Slack bookings and the audit sheet." table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.meetings} />}>
               <BarChart data={rows} x={x} tooltipLabel={tip} series={series.meetings} label={`Meetings per ${unit}`} />
             </Card>
             {hasLinkedin && (

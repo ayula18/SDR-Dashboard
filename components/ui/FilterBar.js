@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useDashboard } from '@/lib/client/dashboard-context';
 import { fmtDateRange } from '@/lib/client/format';
 import { RANGE_OPTIONS, useFilters } from '@/lib/client/use-filters';
+import MultiSelect from './MultiSelect';
 
 const CUSTOM = 'custom';
 const DAY_MS = 86_400_000;
@@ -106,10 +107,13 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
       )}
 
       {!hide.includes('sdr') && (
-        <select aria-label="SDR" className="select-trigger" value={values.sdr} onChange={e => setParams({ sdr: e.target.value })}>
-          <option value="">All SDRs</option>
-          {(meta?.sdrs || []).map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-        </select>
+        <MultiSelect
+          label="SDRs"
+          allLabel="All SDRs"
+          options={(meta?.sdrs || []).map(s => s.name)}
+          value={values.sdr ? values.sdr.split(',').filter(Boolean) : []}
+          onChange={picked => setParams({ sdr: picked.join(',') })}
+        />
       )}
 
       {!hide.includes('program') && (

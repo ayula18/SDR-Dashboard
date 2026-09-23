@@ -79,15 +79,23 @@ export function ProgramLead({ name, range, summary, channel, companies }) {
  */
 export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpenList }) {
   const both = channel === 'both';
-  const split = key => (both ? `${fmtInt(summary.email[key])} email, ${fmtInt(summary.linkedin[key])} LinkedIn` : null);
+  // Parts that add up to the step: email only, LinkedIn only and both, so a company on both channels counts once.
+  const split = key => {
+    // A response cached before `split` existed (an open tab across a deploy) has no parts; show no note until it refreshes.
+    const m = summary.split?.[key];
+    if (!both || !m) return null;
+    return [[m.emailOnly, 'email only'], [m.linkedinOnly, 'LinkedIn only'], [m.both, 'both']]
+      .filter(([n]) => n > 0)
+      .map(([n, label]) => `${fmtInt(n)} ${label}`)
+      .join(', ') || null;
+  };
   const emails = email?.emailsSent || 0;
   const invites = linkedin?.invitesSent || 0;
   const messages = linkedin?.messagesSent || 0;
   const touchNote = [email && plural(emails, 'email'), linkedin && plural(invites, 'invite'), linkedin && plural(messages, 'message')].filter(Boolean).join(', ');
   const steps = [
     { key: 'touches', label: 'Touchpoints', value: emails + invites + messages, note: touchNote },
-    // The channel counts overlap, so say how many were reached on both.
-    { key: 'companies', label: 'Unique companies', value: summary.total, count: summary.total, note: both ? `${split('touched')}, ${fmtInt(summary.both)} on both` : null, list: 'companies' },
+    { key: 'companies', label: 'Unique companies', value: summary.total, count: summary.total, note: split('touched'), list: 'companies' },
     { key: 'replied', label: 'Replied', value: summary.replied, count: summary.replied, note: split('replied'), list: 'replied', converts: true },
     { key: 'positive', label: 'Positive', value: summary.positive, count: summary.positive, note: split('positive'), list: 'positive', converts: true },
     {

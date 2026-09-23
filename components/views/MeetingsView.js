@@ -46,7 +46,7 @@ export default function MeetingsView() {
     <div className="page">
       <PageHeader
         title="Meetings"
-        description="Every meeting in the Qualified Meetings audit sheet by the date it was held, inbound, referral and ads included, with the SDR and campaign it's credited to."
+        description="Every meeting booked, by the date it was held, inbound, referral and ads included, with the SDR and campaign it's credited to. Bookings come from the Slack alert the day they happen; the audit sheet adds qualified and deal value."
         meta={<SyncStatus />}
       />
       <FilterBar range={data?.range}>
