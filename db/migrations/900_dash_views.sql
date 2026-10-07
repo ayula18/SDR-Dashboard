@@ -7,8 +7,9 @@
 -- it runs after every table migration whose columns it reads.
 -- ═══════════════════════════════════════════════════════════════════════════
 
-DROP VIEW IF EXISTS dash_v_linkedin_leads;
+-- dash_v_meetings reads dash_v_linkedin_leads, so it drops first.
 DROP VIEW IF EXISTS dash_v_meetings;
+DROP VIEW IF EXISTS dash_v_linkedin_leads;
 DROP VIEW IF EXISTS dash_v_leads;
 DROP VIEW IF EXISTS dash_v_campaigns;
 DROP VIEW IF EXISTS dash_v_reply_verdicts;
@@ -36,6 +37,11 @@ FROM dash_reply_verdicts v;
 
 -- Campaigns with overrides applied. Test, webhook and deliverability-check
 -- campaigns are excluded by name so they never inflate a funnel.
+--
+-- AI SDR is the exception (Ayush, 2026-09-24): the agent's first batches are
+-- named "AI_SDR_Test_…", and its programme total is meant to match what
+-- Instantly shows for the whole campaign list, so the name rule is not applied
+-- to them. An explicit dash_campaign_overrides row still excludes one.
 CREATE VIEW dash_v_campaigns AS
 SELECT
   c.id, c.platform, c.external_id, c.name, c.status, c.created_at_src, c.updated_at_src, c.senders,
@@ -44,7 +50,10 @@ SELECT
   CASE WHEN o.theme   IS NULL THEN c.parsed_theme   ELSE NULLIF(o.theme, '')   END AS theme,
   CASE WHEN o.segment IS NULL THEN c.parsed_segment ELSE NULLIF(o.segment, '') END AS segment,
   c.parsed_region AS region,
-  (COALESCE(o.excluded, FALSE) OR c.name ~* '(^|[^a-z])(test+|webhook|deliverability)([^a-z]|$)') AS excluded,
+  (COALESCE(o.excluded, FALSE)
+   OR (c.name ~* '(^|[^a-z])(test+|webhook|deliverability)([^a-z]|$)'
+       AND CASE WHEN o.program IS NULL THEN c.parsed_program ELSE NULLIF(o.program, '') END
+           IS DISTINCT FROM 'ai-sdr')) AS excluded,
   (o.campaign_id IS NOT NULL) AS overridden
 FROM dash_campaigns c
 LEFT JOIN dash_campaign_overrides o ON o.campaign_id = c.id;

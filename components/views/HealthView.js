@@ -13,8 +13,8 @@ import PageHeader from '../ui/PageHeader';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import { MiniStat, campaignHref, isTestName } from './common';
 
-const RUN_TONES = { complete: 'good', partial: 'warn', blocked: 'warn', skipped: 'neutral', failed: 'bad', running: 'accent' };
-const RUN_LABELS = { complete: 'Complete', partial: 'Partly done', blocked: 'Blocked', skipped: 'Skipped', failed: 'Failed', running: 'Running' };
+const RUN_TONES = { complete: 'good', partial: 'warn', blocked: 'warn', deferred: 'warn', skipped: 'neutral', failed: 'bad', abandoned: 'bad', running: 'accent' };
+const RUN_LABELS = { complete: 'Complete', partial: 'Partly done', blocked: 'Blocked', deferred: 'No time left', skipped: 'Skipped', failed: 'Failed', abandoned: 'Killed mid-run', running: 'Running' };
 const excludedWhy = r => (isTestName(r.name) ? 'The name marks it as a test' : 'Left out by an admin');
 const newestCreated = campaigns => campaigns.map(c => c.createdAt).filter(Boolean).sort().pop() || null;
 
