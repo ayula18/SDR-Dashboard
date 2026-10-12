@@ -234,12 +234,48 @@ export function rateCell(rate, lowSample, detail) {
   );
 }
 
-export function HeldBadge({ happened }) {
-  const value = String(happened || '').toLowerCase();
-  if (value === 'yes') return <Badge tone="good">Held</Badge>;
-  if (value === 'no') return <Badge tone="bad">No-show</Badge>;
-  if (value === 'not yet') return <Badge>Upcoming</Badge>;
-  return <Badge tone="warn">Needs review</Badge>;
+/**
+ * What came of a meeting, and what says so. "Held" is only ever a claim something
+ * backs: the audit sheet, a recording with the prospect in the room, or the sales
+ * pipeline moving afterwards. Everything unproven reads as "No show?", never as
+ * held, and a booking that moved is neither.
+ */
+export const OUTCOMES = {
+  held: { label: 'Held', tone: 'good' },
+  no_show: { label: 'No-show', tone: 'bad' },
+  rescheduled: { label: 'Rescheduled', tone: 'neutral' },
+  upcoming: { label: 'Upcoming', tone: 'neutral' },
+  review: { label: 'No show?', tone: 'warn' },
+};
+
+// Which rung of the booking waterfall this meeting came from.
+export const BOOKED_VIA = {
+  sheet: 'Audit sheet',
+  slack: 'Slack alert',
+  hubspot: 'HubSpot',
+};
+
+const EVIDENCE = {
+  audit: 'From the audit sheet',
+  recording: 'From the call recording',
+  pipeline: 'From the sales pipeline',
+  moved: 'Rescheduled',
+  hubspot: 'HubSpot only',
+  schedule: 'Not yet',
+  none: 'No evidence yet',
+};
+
+export function HeldBadge({ outcome, happened, evidenceNote, evidenceSource }) {
+  // A row from before the evidence job ran still carries only the sheet's column.
+  const key = outcome || (String(happened || '').toLowerCase() === 'yes' ? 'held'
+    : String(happened || '').toLowerCase() === 'no' ? 'no_show' : 'review');
+  const o = OUTCOMES[key] || OUTCOMES.review;
+  return (
+    <span className="cell-stack">
+      <Badge tone={o.tone} title={evidenceNote || undefined}>{o.label}</Badge>
+      {evidenceSource && <span className="cell-sub">{EVIDENCE[evidenceSource] || evidenceSource}</span>}
+    </span>
+  );
 }
 
 const ACCOUNT_STATUS = {
@@ -390,7 +426,14 @@ export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
       label: 'Channel',
       sort: r => r.channel,
       csv: r => r.channel,
-      render: r => <>{r.channel || '–'}{r.source && r.source !== r.channel && <span className="cell-sub">{r.source}</span>}</>,
+      render: r => <>{r.channel || <span className="muted">Not stated</span>}{r.source && r.source !== r.channel && <span className="cell-sub">{r.source}</span>}</>,
+    },
+    {
+      key: 'bookedVia',
+      label: 'Booked via',
+      sort: r => r.bookedVia,
+      csv: r => BOOKED_VIA[r.bookedVia] || r.bookedVia,
+      render: r => <span className="cell-sub">{BOOKED_VIA[r.bookedVia] || r.bookedVia || '–'}</span>,
     },
     withSdr && {
       key: 'sdr',
@@ -408,7 +451,13 @@ export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
         ? <Link className="truncate" href={withFilters(campaignHref(r.campaignId))} title={r.campaign}>{r.campaign}</Link>
         : <span className="muted">No campaign match</span>),
     },
-    { key: 'held', label: 'Held', sort: r => (r.held ? 1 : 0), csv: r => r.happened, render: r => <HeldBadge happened={r.happened} /> },
+    {
+      key: 'held',
+      label: 'Outcome',
+      sort: r => (r.held ? 1 : 0),
+      csv: r => [OUTCOMES[r.outcome]?.label || r.happened, r.evidenceNote].filter(Boolean).join(' — '),
+      render: r => <HeldBadge outcome={r.outcome} happened={r.happened} evidenceNote={r.evidenceNote} evidenceSource={r.evidenceSource} />,
+    },
     { key: 'qualified', label: 'Qualified', sort: r => (r.qualified ? 1 : 0), csv: r => (r.qualified ? 'Yes' : 'No'), render: r => (r.qualified ? 'Yes' : 'No') },
     { key: 'dealValue', label: 'Deal value', align: 'right', sort: r => r.dealValue, csv: r => r.dealValue, render: r => fmtMoney(r.dealValue) },
     { key: 'segment', label: 'Segment', sort: r => r.segment, csv: r => r.segment, render: r => r.segment || '–' },

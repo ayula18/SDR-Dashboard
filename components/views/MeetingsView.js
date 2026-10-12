@@ -46,7 +46,9 @@ export default function MeetingsView() {
     <div className="page">
       <PageHeader
         title="Meetings"
-        description="Every meeting booked, by the date it was held, inbound, referral and ads included, with the SDR and campaign it's credited to. Bookings come from the Slack alert the day they happen; the audit sheet adds qualified and deal value."
+        description={'Every meeting booked, by the date it was held, inbound, referral and ads included, with the SDR and campaign it\'s credited to. '
+          + 'Bookings come from the audit sheet, the booking bot\'s Slack alert and, where neither has it, HubSpot. Held means someone from the company '
+          + 'turned up \u2014 the sheet says so, a recording puts them in the room, or the pipeline moved afterwards \u2014 and every meeting shows which.'}
         meta={<SyncStatus />}
       />
       <FilterBar range={data?.range}>
@@ -62,7 +64,7 @@ export default function MeetingsView() {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="tiles">
             <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
-            <StatTile label="Held" value={fmtInt(totals.held)} change={totals.change.held} note={`${fmtPct(totals.heldRate)} of meetings`} />
+            <StatTile label="Held" value={fmtInt(totals.held)} change={totals.change.held} note={`${fmtPct(totals.heldRate)} of the ones we can judge`} />
             <StatTile label="Qualified" value={fmtInt(totals.qualified)} change={totals.change.qualified} />
             <StatTile
               label="Qualified pipeline"
@@ -70,8 +72,8 @@ export default function MeetingsView() {
               change={totals.change.pipelineValue}
               note={totals.avgDealValue ? `${fmtMoney(totals.avgDealValue)} average deal` : undefined}
             />
-            <StatTile label="Senior champion" value={fmtPct(totals.seniorChampionRate)} note={`${fmtInt(totals.seniorChampion)} meetings`} />
-            <StatTile label="Not confirmed yet" value={fmtInt(totals.pendingReview)} note={`${fmtInt(totals.noShow)} no-shows`} />
+            <StatTile label="No show?" value={fmtInt(totals.pendingReview)} note={`${fmtInt(totals.noShow)} confirmed no-shows`} upIsGood={false} />
+            <StatTile label="Rescheduled" value={fmtInt(totals.rescheduled)} note={totals.upcoming ? `${fmtInt(totals.upcoming)} still ahead` : 'Moved to a later slot'} />
           </div>
 
           <Card

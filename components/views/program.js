@@ -18,7 +18,7 @@ const stack = (value, sub) => <span className="cell-stack">{value}{sub && <span 
 const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 
 export const CHANNEL_VIEWS = [['both', 'Both'], ['email', 'Email'], ['linkedin', 'LinkedIn']];
-const CHANNEL_PHRASE = { both: 'on email and LinkedIn', email: 'by email', linkedin: 'on LinkedIn' };
+export const CHANNEL_PHRASE = { both: 'on email and LinkedIn', email: 'by email', linkedin: 'on LinkedIn' };
 
 /** Both, Email or LinkedIn. A channel the program has never used is shown but can't be picked. */
 export function ChannelToggle({ value, onChange, available }) {
@@ -75,9 +75,10 @@ export function ProgramLead({ name, range, summary, channel, companies }) {
 /**
  * Touchpoints → unique companies → replied → positive → meeting → pipeline.
  * Touchpoints count what went out (emails, invites, messages); every later step
- * counts companies. Steps with a list open it.
+ * counts companies. A step whose list the page holds opens it; `openLists`
+ * names those, for a page that only lists some of the companies behind a step.
  */
-export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpenList }) {
+export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpenList, subtitle, openLists = null }) {
   const both = channel === 'both';
   // Parts that add up to the step: email only, LinkedIn only and both, so a company on both channels counts once.
   const split = key => {
@@ -111,15 +112,15 @@ export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpen
   return (
     <Card
       title="Funnel"
-      subtitle={range.sinceStart
+      subtitle={subtitle || (range.sinceStart
         ? 'Every touch this program has sent, the unique companies it reached, and how far each has got. Open a step to see which companies.'
-        : 'Touches sent in this range, the unique companies they reached, and how far each has got since. Open a step to see which companies.'}
+        : 'Touches sent in this range, the unique companies they reached, and how far each has got since. Open a step to see which companies.')}
     >
       <ol className="stepper">
         {steps.map((step, i) => {
           const previous = step.converts ? steps[i - 1].count : null;
           const conversion = previous ? (step.count / previous) * 100 : null;
-          const clickable = step.list && step.count > 0;
+          const clickable = step.list && step.count > 0 && (!openLists || openLists.includes(step.list));
           const body = (
             <>
               <span className="stepper-label">
@@ -293,8 +294,12 @@ export function programCompanyColumns(channel) {
   ].filter(Boolean);
 }
 
-/** Per SDR in the range: companies touched, then each channel's volume and replies. */
-export function bySdrColumns({ channel, teamColor, withFilters }) {
+/**
+ * Per SDR in the range: companies touched, then each channel's volume and
+ * replies. A page without the full company list leaves out `withCompanies`;
+ * `withMeetings` adds what those SDRs booked.
+ */
+export function bySdrColumns({ channel, teamColor, withFilters, withCompanies = true, withMeetings = false }) {
   const email = channel !== 'linkedin';
   const linkedin = channel !== 'email';
   return [
@@ -307,12 +312,13 @@ export function bySdrColumns({ channel, teamColor, withFilters }) {
         ? <span className="muted">Unattributed</span>
         : <Person name={r.sdr} color={teamColor(r.sdr)} href={withFilters(sdrHref(r.sdr))} size={22} />),
     },
-    { key: 'companies', label: 'Companies', align: 'right', csv: r => r.companies, render: r => stack(fmtInt(r.companies), `${fmtInt(r.positiveCompanies)} positive`) },
+    withCompanies && { key: 'companies', label: 'Companies', align: 'right', csv: r => r.companies, render: r => stack(fmtInt(r.companies), `${fmtInt(r.positiveCompanies)} positive`) },
     email && { key: 'emailsSent', label: 'Emails sent', align: 'right', csv: r => r.emailsSent, render: r => stack(fmtInt(r.emailsSent), `${fmtInt(r.peopleEmailed)} people`) },
     email && { key: 'emailReplied', label: 'Email replies', align: 'right', csv: r => r.emailReplied, render: r => stack(fmtInt(r.emailReplied), `${fmtInt(r.emailPositive)} positive`) },
     linkedin && { key: 'invitesSent', label: 'Invites sent', align: 'right', csv: r => r.invitesSent, render: r => stack(fmtInt(r.invitesSent), `${fmtInt(r.invitesAccepted)} accepted`) },
     linkedin && { key: 'messagesSent', label: 'Messages sent', align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
     linkedin && { key: 'linkedinReplied', label: 'LinkedIn replies', align: 'right', csv: r => r.linkedinReplied, render: r => stack(fmtInt(r.linkedinReplied), `${fmtInt(r.linkedinPositive)} positive`) },
+    withMeetings && { key: 'meetings', label: 'Meetings', align: 'right', csv: r => r.meetings, render: r => stack(fmtInt(r.meetings), `${fmtInt(r.meetingsHeld)} held`) },
   ].filter(Boolean);
 }
 

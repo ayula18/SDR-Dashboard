@@ -172,7 +172,8 @@ FROM base;
 
 -- Meetings from both sources, joined to the outreach that earned them.
 --   'slack'  the booking bot's alert, in the archive the morning after it is booked
---   'sheet'  the qualified-meetings audit, which alone carries qualified and deal value
+--   'sheet'    the qualified-meetings audit, which alone carries qualified and deal value
+--   'hubspot'  a first meeting HubSpot knows about that neither of the others has
 -- When both describe the same company within three days, the sheet's row is kept,
 -- so a meeting is never counted twice. Attribution looks for the campaign that
 -- reached the company in the 180 days before: an emailed lead or a LinkedIn
@@ -186,7 +187,16 @@ SELECT
   a.program,
   a.theme,
   COALESCE(m.sdr_name, CASE WHEN m.channel ILIKE 'sdr%' THEN a.sdr END) AS attributed_sdr,
-  (lower(m.happened) = 'yes') AS did_happen
+  -- m.* already carries outcome, evidence_source and evidence_note, written by the
+  -- meetings-evidence job (011) from a waterfall of evidence.
+  --
+  -- Held means the prospect turned up, which is a claim something has to back: the
+  -- audit sheet, a recording with them in the room, or the pipeline moving after.
+  -- Until that job has first run, the audit sheet's own column stands in.
+  (COALESCE(m.outcome, CASE WHEN lower(m.happened) = 'yes' THEN 'held' END) = 'held') AS did_happen,
+  -- A booking that moved keeps its row so the move is visible, but the meeting
+  -- is counted once, at the slot it moved to.
+  (m.superseded_by IS NOT NULL) AS rescheduled
 FROM dash_meetings m
 LEFT JOIN LATERAL (
   SELECT x.campaign_id, x.campaign_name, x.sdr, x.program, x.theme
