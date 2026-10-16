@@ -57,7 +57,7 @@ export default function SdrsView() {
         description="Everyone running outreach, side by side. Pick a few in the SDR filter to compare just them. Rates are per lead contacted, and anyone under 100 contacted leads is flagged as a small sample."
         meta={<SyncStatus />}
       />
-      <FilterBar range={data?.range} showGrain={false} />
+      <FilterBar range={data?.range} />
       <WarningsBanner />
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <LoadingBlock />}

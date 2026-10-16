@@ -89,7 +89,7 @@ export default function InsightsView() {
         description="Which SDRs, message angles, company types and sequence steps turn contacted leads into positive replies."
         meta={<SyncStatus />}
       />
-      <FilterBar range={data?.range} defaultRange={DEFAULT_RANGE} showGrain={false} />
+      <FilterBar range={data?.range} defaultRange={DEFAULT_RANGE} />
       <WarningsBanner />
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <LoadingBlock />}

@@ -15,7 +15,6 @@ const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : man
 const listNames = names => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
 
 const MOVERS = [
-  ['touches', 'touchpoints'],
   ['replies', 'replies'],
   ['positive', 'positive replies'],
   ['meetings', 'meetings'],
@@ -71,8 +70,6 @@ export function OverviewLead({ summary, tiles, range, channel, companies }) {
   );
 }
 
-const TOUCH_LABEL = { both: 'Touchpoints', email: 'Emails sent', linkedin: 'Invites and messages' };
-const TOUCH_NOTE = { both: 'Emails, invites and messages', email: 'From Instantly', linkedin: 'From HeyReach' };
 const REPLY_NOTE = { both: 'People who replied on either channel', email: 'Leads who replied', linkedin: 'People who replied' };
 
 /** The headline row, in the unit the channel is counted in. */
@@ -80,7 +77,6 @@ export function OverviewTiles({ tiles, channel }) {
   return (
     <div className="tiles">
       <KpiTile label="Companies reached" kpi={tiles.companies} note="Unique companies touched" />
-      <KpiTile label={TOUCH_LABEL[channel]} kpi={tiles.touches} note={TOUCH_NOTE[channel]} />
       <KpiTile label="Replies" kpi={tiles.replies} note={REPLY_NOTE[channel]} />
       <KpiTile label="Positive replies" kpi={tiles.positive} />
       <KpiTile label="Meetings" kpi={tiles.meetings} note="By the date they were held" />

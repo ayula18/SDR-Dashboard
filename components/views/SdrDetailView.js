@@ -17,7 +17,7 @@ import {
 } from './common';
 
 export default function SdrDetailView({ name }) {
-  const { apiParams, values } = useFilters();
+  const { apiParams } = useFilters();
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
   const programName = useProgramName();
@@ -26,7 +26,7 @@ export default function SdrDetailView({ name }) {
     return rest;
   }, [apiParams]);
   const { data, error, loading, refreshing, reload } = useApi(`/api/metrics/sdrs/${encodeURIComponent(name)}`, params);
-  const grain = data?.range?.grain || values.grain || 'week';
+  const grain = data?.range?.grain || 'week';
   const works = data?.whatWorks;
   const rateDetail = r => `${fmtInt(r.positive)} of ${fmtInt(r.contacted)}`;
 

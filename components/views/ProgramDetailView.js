@@ -25,7 +25,7 @@ const SINCE_START = [{ value: 'since-start', label: 'Since start' }];
  * Any company, funnel step or reply opens the conversation behind it.
  */
 export default function ProgramDetailView({ slug }) {
-  const { apiParams, values, get, setParams } = useFilters({ defaultRange: 'since-start' });
+  const { apiParams, get, setParams } = useFilters({ defaultRange: 'since-start' });
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
   const programName = useProgramName();
@@ -45,7 +45,7 @@ export default function ProgramDetailView({ slug }) {
     fromList,
   }), []);
 
-  const grain = data?.range?.grain || values.grain || 'week';
+  const grain = data?.range?.grain || 'week';
   const program = data?.program;
   const summary = data?.companySummary;
   const empty = data && data.companies.length === 0 && data.campaigns.length === 0;
@@ -80,7 +80,7 @@ export default function ProgramDetailView({ slug }) {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <ProgramLead name={program.name} range={data.range} summary={summary} channel={view} companies={data.companies} />
 
-          <CompanyFunnel summary={summary} channel={view} range={data.range} email={data.email} linkedin={data.linkedin} onOpenList={openList} />
+          <CompanyFunnel summary={summary} channel={view} range={data.range} onOpenList={openList} />
 
           {view === 'both' ? (
             <div className="grid-2">

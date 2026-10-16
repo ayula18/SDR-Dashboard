@@ -29,7 +29,7 @@ const OPEN_LISTS = ['replied', 'positive', 'meeting'];
  * companies first, then each channel, then the meetings that came of it.
  */
 export default function OverviewView() {
-  const { apiParams, values, get, setParams } = useFilters();
+  const { apiParams, get, setParams } = useFilters();
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
   const programName = useProgramName();
@@ -46,7 +46,7 @@ export default function OverviewView() {
     fromList,
   }), []);
 
-  const grain = data?.range?.grain || values.grain || 'week';
+  const grain = data?.range?.grain || 'week';
   const view = data?.channel || channel;
   const summary = data?.companySummary;
   const empty = data && summary.total === 0 && data.meetings.totals.meetings === 0;
@@ -82,11 +82,9 @@ export default function OverviewView() {
             summary={summary}
             channel={view}
             range={data.range}
-            email={data.email}
-            linkedin={data.linkedin}
             onOpenList={openList}
             openLists={OPEN_LISTS}
-            subtitle="Touches sent in this range, the unique companies they reached, and how far each has got since. The last two steps count meetings at those companies, whenever they happened; the Meetings section counts what was held in this range."
+            subtitle="The companies reached in this range, and how far each has got since. The last two steps count meetings at those companies, whenever they happened; the Meetings section counts what was held in this range."
           />
 
           {view === 'both' ? (

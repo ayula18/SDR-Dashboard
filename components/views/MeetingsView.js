@@ -26,13 +26,13 @@ function MeetingBars({ title, subtitle, rows, label, href }) {
 }
 
 export default function MeetingsView() {
-  const { apiParams, values, get, setParams } = useFilters();
+  const { apiParams, get, setParams } = useFilters();
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
   const programName = useProgramName();
   const channel = get('channel');
   const { data, error, loading, refreshing, reload } = useApi('/api/metrics/meetings', { ...apiParams, channel });
-  const grain = data?.range?.grain || values.grain || 'week';
+  const grain = data?.range?.grain || 'week';
   const totals = data?.totals;
   const channels = data?.channels || (channel ? [channel] : []);
   const series = [

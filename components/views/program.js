@@ -73,12 +73,13 @@ export function ProgramLead({ name, range, summary, channel, companies }) {
 }
 
 /**
- * Touchpoints → unique companies → replied → positive → meeting → pipeline.
- * Touchpoints count what went out (emails, invites, messages); every later step
- * counts companies. A step whose list the page holds opens it; `openLists`
- * names those, for a page that only lists some of the companies behind a step.
+ * Unique companies → replied → positive → meeting → pipeline. Every step counts
+ * companies, so each one is a subset of the step above it and the percentages
+ * mean what they look like. A step whose list the page holds opens it;
+ * `openLists` names those, for a page that only lists some of the companies
+ * behind a step.
  */
-export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpenList, subtitle, openLists = null }) {
+export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, openLists = null }) {
   const both = channel === 'both';
   // Parts that add up to the step: email only, LinkedIn only and both, so a company on both channels counts once.
   const split = key => {
@@ -90,12 +91,7 @@ export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpen
       .map(([n, label]) => `${fmtInt(n)} ${label}`)
       .join(', ') || null;
   };
-  const emails = email?.emailsSent || 0;
-  const invites = linkedin?.invitesSent || 0;
-  const messages = linkedin?.messagesSent || 0;
-  const touchNote = [email && plural(emails, 'email'), linkedin && plural(invites, 'invite'), linkedin && plural(messages, 'message')].filter(Boolean).join(', ');
   const steps = [
-    { key: 'touches', label: 'Touchpoints', value: emails + invites + messages, note: touchNote },
     { key: 'companies', label: 'Unique companies', value: summary.total, count: summary.total, note: split('touched'), list: 'companies' },
     { key: 'replied', label: 'Replied', value: summary.replied, count: summary.replied, note: split('replied'), list: 'replied', converts: true },
     { key: 'positive', label: 'Positive', value: summary.positive, count: summary.positive, note: split('positive'), list: 'positive', converts: true },
@@ -113,8 +109,8 @@ export function CompanyFunnel({ summary, channel, range, email, linkedin, onOpen
     <Card
       title="Funnel"
       subtitle={subtitle || (range.sinceStart
-        ? 'Every touch this program has sent, the unique companies it reached, and how far each has got. Open a step to see which companies.'
-        : 'Touches sent in this range, the unique companies they reached, and how far each has got since. Open a step to see which companies.')}
+        ? 'Every company this program has reached, and how far each has got. Open a step to see which companies.'
+        : 'The companies reached in this range, and how far each has got since. Open a step to see which companies.')}
     >
       <ol className="stepper">
         {steps.map((step, i) => {
@@ -194,7 +190,7 @@ export function ChannelCard({ channel, numbers, change }) {
   );
 }
 
-/** Touches and replies per week or month, each series keeping its colour whichever channel is shown. */
+/** What went out and what came back per week or month, each series keeping its colour whichever channel is shown. */
 export function ProgramTrend({ rows, grain, channel }) {
   const email = channel !== 'linkedin';
   const linkedin = channel !== 'email';
@@ -203,7 +199,7 @@ export function ProgramTrend({ rows, grain, channel }) {
   const tip = row => fmtPeriod(grain, row.period, { long: true });
   const data = rows.map(r => ({ ...r, positiveShown: (email ? r.positive : 0) + (linkedin ? r.linkedinPositive : 0) }));
 
-  const touches = [
+  const sent = [
     email && { key: 'sent', label: 'Emails sent', color: SERIES[0] },
     linkedin && { key: 'linkedinInvitesSent', label: 'Invites sent', color: SERIES[1] },
     linkedin && { key: 'linkedinMessagesSent', label: 'Messages sent', color: SERIES[2] },
@@ -222,7 +218,7 @@ export function ProgramTrend({ rows, grain, channel }) {
 
   return (
     <div className="grid-2">
-      {chart(`Touches per ${unit}`, 'Emails from Instantly; invites and messages from HeyReach.', touches)}
+      {chart(`Sent per ${unit}`, 'Emails from Instantly; invites and messages from HeyReach.', sent)}
       {chart(`Replies per ${unit}`, 'People who replied, by the date the reply came in.', replies)}
     </div>
   );

@@ -52,7 +52,7 @@ export default function CampaignsView() {
         description="Every Instantly and HeyReach campaign in one list, with the companies each one reached. SDR, program and message angle come from the campaign name; admins can correct them on a campaign's page."
         meta={<SyncStatus />}
       />
-      <FilterBar range={data?.range} showGrain={false}>
+      <FilterBar range={data?.range}>
         <select aria-label="Which campaigns" className="select-trigger" value={show} onChange={e => setParams({ show: e.target.value === 'current' ? null : e.target.value })}>
           {SHOW.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>

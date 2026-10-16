@@ -43,19 +43,21 @@ function CustomRange({ initialFrom, initialTo, applied, onApply, onCancel }) {
 }
 
 /**
- * The single filter row above a page's content. Date range first, then trend
- * grain, then who and what. The selection lives in the URL, and everything
- * below re-renders against the same slice. `leading` goes before the date
- * range; `extraRanges` adds page-specific range options, such as a program's
- * "Since start".
+ * The single filter row above a page's content: the date range, then who and
+ * what. The selection lives in the URL, and everything below re-renders against
+ * the same slice. `leading` goes before the date range; `extraRanges` adds
+ * page-specific range options, such as a program's "Since start".
+ *
+ * There is no weekly/monthly control. The range decides how the trend charts
+ * are bucketed, so a chart can never disagree with the dates beside it; a
+ * custom range picks its own buckets the same way a preset does.
  */
-export default function FilterBar({ range, hide = [], defaultRange = 'last-4-weeks', extraRanges = [], showGrain = true, leading, children }) {
+export default function FilterBar({ range, hide = [], defaultRange = 'last-4-weeks', extraRanges = [], leading, children }) {
   const { meta } = useDashboard();
   const { values, setParams } = useFilters({ defaultRange });
   const [picking, setPicking] = useState(false);
   const custom = Boolean(values.from);
-  const grain = values.grain || range?.grain || 'week';
-  const filtered = ['sdr', 'program', 'theme', 'from', 'grain'].some(k => values[k] && !hide.includes(k)) || values.range !== defaultRange;
+  const filtered = ['sdr', 'program', 'theme', 'from'].some(k => values[k] && !hide.includes(k)) || values.range !== defaultRange;
   // Custom dates round out to whole weeks or months; say so when that moved them.
   const rounded = custom && range && (range.from !== values.from || (values.to && range.to !== values.to));
 
@@ -96,16 +98,6 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
         />
       )}
 
-      {showGrain && (
-        <div className="segmented" role="group" aria-label="Show trends">
-          {[['week', 'Weekly'], ['month', 'Monthly']].map(([value, text]) => (
-            <button key={value} type="button" aria-pressed={grain === value} onClick={() => setParams({ grain: value })}>
-              {text}
-            </button>
-          ))}
-        </div>
-      )}
-
       {!hide.includes('sdr') && (
         <MultiSelect
           label="SDRs"
@@ -138,7 +130,7 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
           className="filters-reset"
           onClick={() => {
             setPicking(false);
-            setParams({ range: null, from: null, to: null, grain: null, sdr: null, program: null, theme: null, channel: null });
+            setParams({ range: null, from: null, to: null, sdr: null, program: null, theme: null, channel: null });
           }}
         >
           Reset filters

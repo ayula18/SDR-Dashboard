@@ -67,7 +67,7 @@ export default function ProgramsView() {
         description="Specialised outreach, each with its full funnel and how the selected range compares with the one before. Campaigns join a program by name."
         meta={<SyncStatus />}
       />
-      <FilterBar range={data?.range} hide={['program']} showGrain={false} />
+      <FilterBar range={data?.range} hide={['program']} />
       <WarningsBanner />
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <LoadingBlock />}

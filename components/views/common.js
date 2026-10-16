@@ -51,11 +51,20 @@ export function useProgramName() {
   }, [meta]);
 }
 
+/**
+ * When the sync last got somewhere. The hover carries the stalest input, because
+ * the newest job alone would advertise a freshness the rest of the page does not
+ * have; anything past its own refresh window is also named in the warnings.
+ */
 export function SyncStatus() {
   const { meta } = useDashboard();
   if (!meta) return null;
+  const behind = meta.oldestSyncAt && meta.oldestSyncAt !== meta.lastSyncAt;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+      title={behind ? `Every number is at least this fresh: ${fmtRelative(meta.oldestSyncAt)}` : undefined}
+    >
       <Clock size={13} aria-hidden="true" />
       {meta.lastSyncAt ? `Synced ${fmtRelative(meta.lastSyncAt)}` : 'Not synced yet'}
     </span>

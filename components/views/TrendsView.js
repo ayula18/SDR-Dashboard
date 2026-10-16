@@ -31,10 +31,10 @@ const METRICS = [
 ];
 
 export default function TrendsView() {
-  const { apiParams, values, get, setParams } = useFilters();
+  const { apiParams, get, setParams } = useFilters();
   const count = get('count') || '12';
   const { data, error, loading, refreshing, reload } = useApi('/api/metrics/trends', { ...apiParams, count });
-  const grain = data?.grain || values.grain || 'week';
+  const grain = data?.grain || 'week';
   const unit = grain === 'month' ? 'month' : 'week';
   const rows = data?.rows || [];
   const x = row => fmtPeriod(grain, row.period);

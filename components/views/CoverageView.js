@@ -72,7 +72,7 @@ export default function CoverageView() {
         description="Which accounts were loaded into outreach, how far each one got, and where an account was loaded again or worked by two SDRs."
         meta={<SyncStatus />}
       />
-      <FilterBar range={data?.range} showGrain={false} />
+      <FilterBar range={data?.range} />
       {error && <ErrorState error={error} onRetry={reload} />}
       {loading && <LoadingBlock />}
 

@@ -101,8 +101,8 @@ and what came of it?
   monthly trend once that is more than about four months. Pick a week or month range, or a custom
   range, to see that slice against the one before.
 - **Both, Email or LinkedIn.** The toggle filters every number, table and chart, and stays in the link.
-- **Funnel.** Touchpoints first: emails sent plus LinkedIn invites and messages in the range. Then
-  the unique companies touched (split into email only, LinkedIn only and both, so the parts add up), how many replied,
+- **Funnel.** Every step counts companies, so each one is a subset of the step above it: the unique
+  companies touched (split into email only, LinkedIn only and both, so the parts add up), how many replied,
   were positive and took a meeting, and the qualified pipeline from those meetings. Touched means an
   email lead loaded before the range ended and last emailed after it began, or a LinkedIn person
   added before it ended whom HeyReach last invited or messaged after it began. A company's replies
@@ -166,13 +166,14 @@ and what came of it?
 
 All endpoints require a session and return JSON. Shared query params:
 `range` (`this-week`, `last-week`, `last-4-weeks`, `last-12-weeks`, `this-month`, `last-month`,
-`last-3-months`, `ytd`) or `from`/`to`, plus `grain` (`week`|`month`), `sdr`, `program`, `theme`.
+`last-3-months`, `ytd`) or `from`/`to`, plus `sdr`, `program`, `theme`. There is no `grain` param:
+the range decides whether a trend is weekly or monthly (monthly past about four months).
 
 | Endpoint | What it returns |
 |---|---|
 | `GET /api/meta` | SDRs, programs, themes, range presets, data warnings |
 | `GET /api/metrics/overview` | KPIs vs previous period with sparklines, outreach funnel, LinkedIn block, 12-period trend |
-| `GET /api/metrics/trends?count=12` | Weekly/monthly series with WoW / MoM comparison |
+| `GET /api/metrics/trends?count=12` | Period series with WoW / MoM comparison |
 | `GET /api/metrics/sdrs` | Leaderboard with rates and change |
 | `GET /api/metrics/sdrs/:name` | One SDR: overview, what works by theme/program/segment/step, campaigns, meetings |
 | `GET /api/metrics/campaigns?show=&q=&platform=` | Campaigns on both channels with companies, whole-campaign results and activity in the range. `show`: `active` (default), `current` (running or active in range), `running`, `all` |
