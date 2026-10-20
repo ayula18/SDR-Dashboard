@@ -79,7 +79,16 @@ WITH verdicts AS (
 ),
 base AS (
   SELECT
-    l.*,
+    -- company_domain is the CANONICAL domain (dash_company_domains), so every count
+    -- downstream keys on the company rather than on whichever spelling Instantly
+    -- happened to hold. The original stays beside it for tracing a row back.
+    l.id, l.campaign_id, l.email,
+    COALESCE(cd.canonical_domain, l.company_domain) AS company_domain,
+    l.company_domain AS company_domain_raw,
+    l.company_name, l.status, l.interest_status, l.reply_count, l.replied_step,
+    l.replied_variant, l.upload_method, l.last_step_id, l.last_sender,
+    l.created_at_src, l.last_contact_at, l.last_reply_at, l.interest_changed_at, l.synced_at,
+    (idom.domain IS NOT NULL) AS internal,
     c.sdr, c.program, c.theme, c.segment, c.region, c.excluded, c.name AS campaign_name,
     (COALESCE(l.interest_status = 0, FALSE) OR COALESCE(v.only_auto, FALSE)) AS auto_only,
     (COALESCE(l.interest_status IN (-1, -3), FALSE)
@@ -89,6 +98,8 @@ base AS (
        OR COALESCE(v.any_positive, FALSE)) AS positive_signal
   FROM dash_leads l
   JOIN dash_v_campaigns c ON c.id = l.campaign_id
+  LEFT JOIN dash_company_domains cd ON cd.domain = l.company_domain
+  LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cd.canonical_domain, l.company_domain)
   LEFT JOIN verdicts v ON v.campaign_external_id = c.external_id AND v.person_email = l.email
 )
 SELECT
@@ -97,7 +108,10 @@ SELECT
   (base.reply_count > 0 AND NOT base.auto_only)                                                       AS replied,
   (base.reply_count > 0 AND NOT base.auto_only AND base.negative_signal)                              AS negative,
   (base.reply_count > 0 AND NOT base.auto_only AND NOT base.negative_signal AND base.positive_signal)  AS positive
-FROM base;
+FROM base
+-- Our own seeded addresses are not prospects. Dropped here rather than in each
+-- query, because a page that forgot would quietly report reo.dev as a company.
+WHERE NOT base.internal;
 
 
 -- LinkedIn people in HeyReach campaigns (006_dash_linkedin_leads.sql), with admin
@@ -141,14 +155,14 @@ outcome AS (
     FROM attributed
    GROUP BY 1, 2
 ),
-base AS (
+resolved AS (
   SELECT
     l.campaign_id, l.lead_id, l.linkedin_id, l.person_name, l.position, l.company_name, l.company_key,
-    CASE WHEN a.company_key IS NULL THEN l.company_domain WHEN a.not_a_company THEN NULL ELSE a.domain END AS company_domain,
+    CASE WHEN a.company_key IS NULL THEN l.company_domain WHEN a.not_a_company THEN NULL ELSE a.domain END AS resolved_domain,
     CASE WHEN a.company_key IS NULL THEN COALESCE(l.resolution = 'no_company', FALSE) ELSE a.not_a_company END AS no_company,
     CASE WHEN a.company_key IS NULL THEN l.resolution ELSE 'admin' END AS resolution,
     l.domain_candidates, l.sender, l.campaign_status, l.connection_status, l.message_status, l.error_code,
-    l.added_at, l.last_action_at,
+    l.added_at, l.last_action_at, l.company_url, l.identity_source,
     c.sdr, c.program, c.theme, c.excluded, c.name AS campaign_name, c.status AS campaign_state,
     o.best_verdict, o.last_reply_at,
     CASE WHEN o.lead_id IS NULL THEN COALESCE(l.message_status = 'MessageReply', FALSE) ELSE NOT o.only_auto END AS replied,
@@ -158,6 +172,29 @@ base AS (
   JOIN dash_v_campaigns c ON c.id = l.campaign_id
   LEFT JOIN dash_company_aliases a ON a.company_key = l.company_key
   LEFT JOIN outcome o ON o.campaign_id = l.campaign_id AND o.lead_id = l.lead_id
+),
+-- The admin alias decides which domain a person's employer is; this folds that
+-- domain onto its company's canonical one, so LinkedIn and email land on the same
+-- key and a company worked on both channels is counted once, not twice.
+base AS (
+  SELECT
+    r.campaign_id, r.lead_id, r.linkedin_id, r.person_name, r.position, r.company_name, r.company_key,
+    -- Own answer first; then whatever the rest of this company's LinkedIn page
+    -- resolved to; then fold that onto the company's canonical domain.
+    COALESCE(cd.canonical_domain, COALESCE(r.resolved_domain, lcd.domain)) AS company_domain,
+    r.resolved_domain AS company_domain_raw,
+    (idom.domain IS NOT NULL) AS internal,
+    r.no_company, r.resolution, r.domain_candidates, r.sender, r.campaign_status,
+    r.connection_status, r.message_status, r.error_code, r.added_at, r.last_action_at,
+    r.company_url, r.identity_source,
+    r.sdr, r.program, r.theme, r.excluded, r.campaign_name, r.campaign_state,
+    r.best_verdict, r.last_reply_at, r.replied, r.any_positive, r.any_negative
+  FROM resolved r
+  LEFT JOIN dash_linkedin_company_domains lcd
+         ON r.resolved_domain IS NULL AND lcd.company_url = r.company_url
+  LEFT JOIN dash_company_domains cd ON cd.domain = COALESCE(r.resolved_domain, lcd.domain)
+  LEFT JOIN dash_internal_domains idom
+         ON idom.domain = COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain)
 )
 SELECT
   base.*,
@@ -168,7 +205,8 @@ SELECT
         OR base.message_status IN ('MessageSent', 'MessageReply'), FALSE)            AS reached,
   (base.replied AND base.any_negative)                                               AS negative,
   (base.replied AND NOT base.any_negative AND base.any_positive)                     AS positive
-FROM base;
+FROM base
+WHERE NOT base.internal;
 
 -- Meetings from both sources, joined to the outreach that earned them.
 --   'slack'  the booking bot's alert, in the archive the morning after it is booked
@@ -179,14 +217,36 @@ FROM base;
 -- reached the company in the 180 days before: an emailed lead or a LinkedIn
 -- person, preferring whoever replied, then whoever was reached most recently.
 CREATE VIEW dash_v_meetings AS
+WITH m AS (
+  -- Canonical company domain, so a meeting lands on the same key as the outreach
+  -- that earned it: a meeting at tray.io could otherwise never be attributed to
+  -- the campaign that emailed tray.ai.
+  SELECT
+    COALESCE(cd.canonical_domain, dm.company_domain) AS company_domain,
+    dm.company_domain AS company_domain_raw,
+    (idom.domain IS NOT NULL) AS internal,
+    dm.id, dm.company_raw, dm.meeting_date, dm.week_start, dm.month_start, dm.source_of_meeting,
+    dm.channel, dm.direction, dm.sdr_name, dm.qualified, dm.points, dm.deal_value, dm.happened,
+    dm.segment, dm.employee_bucket, dm.oss_type, dm.champion_title, dm.senior_champion,
+    dm.confidence, dm.source_file, dm.imported_at, dm.source, dm.outcome, dm.evidence_source,
+    dm.evidence_note, dm.evidence_at, dm.superseded_by, dm.booking_qualified,
+    dm.qualification_note, dm.booking_action, dm.booked_via, dm.heard_from,
+    dm.campaign_id AS stated_campaign_id, dm.created_by, dm.entry_note
+  FROM dash_meetings dm
+  LEFT JOIN dash_company_domains cd ON cd.domain = dm.company_domain
+  LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cd.canonical_domain, dm.company_domain)
+)
 SELECT
   m.*,
-  a.campaign_id,
-  a.campaign_name,
-  a.sdr     AS campaign_sdr,
-  a.program,
-  a.theme,
-  COALESCE(m.sdr_name, CASE WHEN m.channel ILIKE 'sdr%' THEN a.sdr END) AS attributed_sdr,
+  -- An attribution an SDR stated wins over the one inferred from outreach: they
+  -- know which campaign earned the meeting, and for 28 recent bookings there is
+  -- no recorded outreach for the lateral to find at all.
+  COALESCE(oc.id, a.campaign_id)       AS campaign_id,
+  COALESCE(oc.name, a.campaign_name)   AS campaign_name,
+  COALESCE(oc.sdr, a.sdr)              AS campaign_sdr,
+  COALESCE(oc.program, a.program)      AS program,
+  COALESCE(oc.theme, a.theme)          AS theme,
+  COALESCE(m.sdr_name, CASE WHEN m.channel ILIKE 'sdr%' THEN COALESCE(oc.sdr, a.sdr) END) AS attributed_sdr,
   -- m.* already carries outcome, evidence_source and evidence_note, written by the
   -- meetings-evidence job (011) from a waterfall of evidence.
   --
@@ -197,7 +257,7 @@ SELECT
   -- A booking that moved keeps its row so the move is visible, but the meeting
   -- is counted once, at the slot it moved to.
   (m.superseded_by IS NOT NULL) AS rescheduled
-FROM dash_meetings m
+FROM m
 LEFT JOIN LATERAL (
   SELECT x.campaign_id, x.campaign_name, x.sdr, x.program, x.theme
     FROM (
@@ -220,12 +280,14 @@ LEFT JOIN LATERAL (
    ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC
    LIMIT 1
 ) a ON TRUE
-WHERE m.source <> 'slack'
+LEFT JOIN dash_v_campaigns oc ON oc.id = m.stated_campaign_id AND NOT oc.excluded
+WHERE NOT m.internal
+  AND (m.source <> 'slack'
    OR NOT EXISTS (
      SELECT 1
-       FROM dash_meetings sheet
+       FROM m sheet
       WHERE sheet.source = 'sheet'
         AND sheet.company_domain IS NOT NULL
         AND sheet.company_domain = m.company_domain
         AND sheet.meeting_date BETWEEN m.meeting_date - 3 AND m.meeting_date + 3
-   );
+   ));

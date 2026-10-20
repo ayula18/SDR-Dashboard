@@ -12,6 +12,7 @@ import DataTable from '../ui/DataTable';
 import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import StatTile from '../ui/StatTile';
+import MeetingEntry from './MeetingEntry';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import { SERIES, SyncStatus, meetingColumns, sdrHref, useProgramName } from './common';
 
@@ -102,6 +103,8 @@ export default function MeetingsView() {
             />
             <MeetingBars title="Open source" rows={data.byOssType} label="key" />
           </div>
+
+          <MeetingEntry meetings={data.meetings} onSaved={reload} />
 
           <Card className="flush" title="All meetings" subtitle="Most recent first.">
             <DataTable

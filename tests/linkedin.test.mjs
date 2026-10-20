@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { companyStage } from '../lib/metrics/companies.js';
-import { POSITIVE_VERDICTS, REPLY_RANK } from '../lib/metrics/format.js';
-import { companyKey, isNoCompany, nameIndex, resolveCompany } from '../lib/outreach/linkedin.js';
+import { POSITIVE_VERDICTS, REPLY_RANK, displayCompany } from '../lib/metrics/format.js';
+import { companyKey, emailedNameIndex, isNoCompany, nameIndex, resolveCompany } from '../lib/outreach/linkedin.js';
 import { VERDICT_COLUMNS, verdictRow } from '../lib/sync/verdicts.js';
 
 const views = readFileSync(new URL('../db/migrations/900_dash_views.sql', import.meta.url), 'utf8');
@@ -36,13 +36,13 @@ test('LinkedIn companies: profile placeholders are not companies', () => {
 });
 
 test('LinkedIn companies: the archive first, then a unique name, then the account email outreach worked', () => {
-  assert.deepEqual(resolve('Stability AI', 'p1'), { domain: 'stability.ai', resolution: 'archive', candidates: null });
-  assert.deepEqual(resolve('Mistral', 'p2'), { domain: 'mistral.ai', resolution: 'name', candidates: null });
-  assert.deepEqual(resolve('Lightricks', 'p3'), { domain: 'lightricks.com', resolution: 'name_emailed', candidates: null });
+  assert.deepEqual(resolve('Stability AI', 'p1'), { domain: 'stability.ai', resolution: 'archive', urlKey: null, candidates: null });
+  assert.deepEqual(resolve('Mistral', 'p2'), { domain: 'mistral.ai', resolution: 'name', urlKey: null, candidates: null });
+  assert.deepEqual(resolve('Lightricks', 'p3'), { domain: 'lightricks.com', resolution: 'name_emailed', urlKey: null, candidates: null });
 });
 
 test('LinkedIn companies: an unsettled or unknown name keeps no domain, and placeholders never borrow one', () => {
-  assert.deepEqual(resolve('Cobalt', 'p4'), { domain: null, resolution: 'ambiguous', candidates: ['cobalt.io', 'cobaltai.com'] });
+  assert.deepEqual(resolve('Cobalt', 'p4'), { domain: null, resolution: 'ambiguous', urlKey: null, candidates: ['cobalt.io', 'cobaltai.com'] });
   assert.equal(resolve('Key1 Capital', 'p5').resolution, 'unmatched');
   assert.equal(resolve('Self-employed', 'p1').resolution, 'no_company');
   assert.equal(resolve('', 'p1').domain, 'stability.ai');
@@ -89,4 +89,68 @@ test('a LinkedIn reply keeps its writer in the column the view joins on', () => 
   assert.equal(row.length, VERDICT_COLUMNS.length);
   assert.equal(row[VERDICT_COLUMNS.indexOf('person_linkedin_id')], 'ACoAAB');
   assert.equal(verdictRow({ id: 'instantly:1', platform: 'email', body: 'No thanks' })[VERDICT_COLUMNS.indexOf('person_linkedin_id')], null);
+});
+
+// ─── Company identity (013_dash_company_identity.sql) ──────────────────────────
+
+test('LinkedIn companies: headline text in the employer field is not a company', () => {
+  for (const name of [
+    'Open to: Interim Executive & Strategy Advisor | Fintech',
+    'Open to work',
+    'Multiple early stage startups',
+    'Startups',
+    'Early Stage Startups, Israeli Startups, Fortune 1000',
+    'Various clients',
+    'Seeking new opportunities',
+    'Looking for my next role',
+  ]) assert.equal(isNoCompany(name), true, name);
+
+  // Real companies whose names begin with one of those words must survive.
+  for (const name of ['Multiplex', 'Variscite', 'Startup Genome', 'Openly', 'Seekr']) {
+    assert.equal(isNoCompany(name), false, name);
+  }
+});
+
+test('LinkedIn companies: a company we email resolves even when the registry has never heard of it', () => {
+  const withEmailed = {
+    ...lookups,
+    byEmailedName: emailedNameIndex([
+      { domain: 'quokka.io', name: 'Quokka' },
+      { domain: 'armadin.com', name: 'Armadin' },
+      // the same name on two domains is ambiguous, so it is left out entirely
+      { domain: 'delve.co', name: 'Delve' },
+      { domain: 'delve.ai', name: 'Delve' },
+    ]),
+  };
+  const r = (name) => resolveCompany({ companyName: name, linkedinId: null }, withEmailed);
+
+  assert.deepEqual(r('Quokka'), { domain: 'quokka.io', resolution: 'emailed_name', urlKey: null, candidates: null });
+  assert.deepEqual(r('Armadin'), { domain: 'armadin.com', resolution: 'emailed_name', urlKey: null, candidates: null });
+  assert.deepEqual(r('Delve'), { domain: null, resolution: 'unmatched', urlKey: null, candidates: null });
+  // The registry still wins when it has an answer.
+  assert.deepEqual(r('Mistral'), { domain: 'mistral.ai', resolution: 'name', urlKey: null, candidates: null });
+});
+
+test('company display: a name that is really a domain is not shown as a name', () => {
+  // Three alloy domains all arrived carrying the name "alloy.com".
+  assert.equal(displayCompany(null, 'alloy.com', 'alloy.co'), 'alloy.co');
+  assert.equal(displayCompany(null, 'alloy.com', 'alloy.it'), 'alloy.it');
+  // A real name is kept, and an enriched name always wins.
+  assert.equal(displayCompany(null, 'Alloy', 'alloy.com'), 'Alloy');
+  assert.equal(displayCompany('Alloy Inc', 'alloy.com', 'alloy.com'), 'Alloy Inc');
+  assert.equal(displayCompany(null, null, 'tray.io'), 'tray.io');
+});
+
+test('views: our own domains and the canonical map are applied where nothing can skip them', () => {
+  // Internal rows leave at the view, not at a query site, so a new page cannot forget.
+  assert.match(views, /FROM base\s*\n(?:--[^\n]*\n)*WHERE NOT base\.internal;/);
+  assert.match(views, /WHERE NOT m\.internal/);
+  // Every company key is the canonical domain.
+  for (const table of ['dash_company_domains cd']) assert.ok(views.includes(table), table);
+  assert.ok(views.includes('COALESCE(cd.canonical_domain, l.company_domain) AS company_domain'));
+  assert.ok(views.includes('COALESCE(cd.canonical_domain, COALESCE(r.resolved_domain, lcd.domain)) AS company_domain'));
+  // A person with no answer of their own inherits from the rest of their company's
+  // LinkedIn page; a person WITH an answer must keep it (someone who changed jobs).
+  assert.match(views, /LEFT JOIN dash_linkedin_company_domains lcd\s*\n\s*ON r\.resolved_domain IS NULL AND lcd\.company_url = r\.company_url/);
+  assert.ok(views.includes('COALESCE(cd.canonical_domain, dm.company_domain) AS company_domain'));
 });
