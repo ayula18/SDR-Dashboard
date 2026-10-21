@@ -1,0 +1,63 @@
+# Hourly sync trigger.
+#
+# WHY THIS EXISTS: Vercel Hobby allows one cron a day, and one invocation is
+# capped at 300s. Measured 2026-10-21, a fully fresh run needs ~424s: ~219s for
+# twelve jobs plus ~205s to read 62 live HeyReach campaigns. It does not fit, and
+# no amount of budget juggling inside one invocation can make it fit — three jobs
+# were finishing `partial` every night because of it.
+#
+# So the work is unchanged and the SCHEDULE moves here: the same endpoint Vercel
+# calls, called more often. Nothing runs on this runner; it is a clock. The lock
+# and reaper in lib/sync/runner.js already stop two runs of a job overlapping, so
+# an early start or a delayed run is recorded as `blocked`, never a double write.
+#
+# The Vercel cron in vercel.json stays as a daily backstop for if this is ever
+# disabled — GitHub turns scheduled workflows off after 60 days without a commit.
+#
+# Secrets this needs (Settings → Secrets and variables → Actions):
+#   APP_URL       https://<your-app>.vercel.app   (no trailing slash)
+#   CRON_SECRET   the same value as the Vercel env var of that name
+name: Sync
+
+on:
+  schedule:
+    # :40 past the hour. Not :00 (when GitHub's scheduler is most congested) and
+    # not :20 (when Vercel's own daily cron fires, which would only collide).
+    - cron: '40 * * * *'
+  workflow_dispatch:
+
+# One sync at a time. A run that overruns holds the next one rather than racing
+# it; cancel-in-progress would kill a sync mid-write.
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger the sync
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          : "${APP_URL:?set the APP_URL secret}"
+          : "${CRON_SECRET:?set the CRON_SECRET secret}"
+
+          # --max-time clears the 300s function ceiling with margin. Retries cover
+          # a cold start or a transient 502; a real failure just waits an hour.
+          http=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 330 --retry 2 --retry-delay 15 --retry-all-errors \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/sync")
+
+          echo "HTTP ${http}"
+          # The body says which jobs ran and what they did, so the Actions log is
+          # readable without opening the dashboard.
+          python3 -m json.tool response.json || cat response.json
+
+          # 401 means the secret drifted from Vercel's; fail loudly rather than
+          # looking healthy while syncing nothing.
+          test "$http" = "200"

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { companyStage } from '../lib/metrics/companies.js';
+import { LI_COMPANY, LI_IS_COMPANY } from '../lib/metrics/linkedin.js';
 import { POSITIVE_VERDICTS, REPLY_RANK, displayCompany } from '../lib/metrics/format.js';
 import { companyKey, emailedNameIndex, isNoCompany, nameIndex, resolveCompany } from '../lib/outreach/linkedin.js';
 import { VERDICT_COLUMNS, verdictRow } from '../lib/sync/verdicts.js';
@@ -148,9 +149,65 @@ test('views: our own domains and the canonical map are applied where nothing can
   // Every company key is the canonical domain.
   for (const table of ['dash_company_domains cd']) assert.ok(views.includes(table), table);
   assert.ok(views.includes('COALESCE(cd.canonical_domain, l.company_domain) AS company_domain'));
-  assert.ok(views.includes('COALESCE(cd.canonical_domain, COALESCE(r.resolved_domain, lcd.domain)) AS company_domain'));
+  assert.ok(views.includes('COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain) AS company_domain'));
   // A person with no answer of their own inherits from the rest of their company's
   // LinkedIn page; a person WITH an answer must keep it (someone who changed jobs).
   assert.match(views, /LEFT JOIN dash_linkedin_company_domains lcd\s*\n\s*ON r\.resolved_domain IS NULL AND lcd\.company_url = r\.company_url/);
+  // And the stated employer name is the last rung, for the person who has neither.
+  assert.match(views, /LEFT JOIN dash_company_names cn\s*\n\s*ON r\.resolved_domain IS NULL AND lcd\.domain IS NULL AND cn\.company_key = r\.company_key/);
   assert.ok(views.includes('COALESCE(cd.canonical_domain, dm.company_domain) AS company_domain'));
+});
+
+test('views: company_id is built once, in the view, and read everywhere else', () => {
+  // The whole point. Eight people at Armadin resolved to armadin.com and a ninth
+  // resolved to nothing; a COALESCE at the query site made that ninth person a
+  // second company called "Armadin". One definition, in one place, or it recurs.
+  assert.ok(views.includes(
+    `COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain,\n             'name:' || r.company_key, 'li:' || r.company_url) AS company_id`));
+  assert.equal(LI_COMPANY, 'l.company_id');
+  assert.equal(LI_IS_COMPANY, 'NOT l.no_company AND l.company_id IS NOT NULL');
+
+  // No query site may rebuild it. These are the two that used to, each with a
+  // DIFFERENT rule, so one company answered to two keys depending on the page.
+  for (const file of ['../lib/metrics/core.js', '../lib/metrics/conversation.js', '../lib/metrics/companies.js',
+                      '../lib/metrics/linkedin.js', '../lib/metrics/campaigns.js']) {
+    const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.ok(!/'li:'\s*\|\|/.test(src), `${file} rebuilds the company key`);
+    assert.ok(!/'name:'\s*\|\|\s*l\.company_key/.test(src), `${file} rebuilds the company key`);
+  }
+});
+
+test('company date filters bound the same column at both ends', () => {
+  // The bug: the lower bound was on last_contact_at and the upper bound on
+  // created_at_src, so the predicate had no upper bound on the outreach at all.
+  // Every range ending in the past then listed companies contacted AFTER it
+  // ended, and one company showed in This week and Last week at once. Measured
+  // 2026-10-20: 62 of Last week's 520 companies were never contacted last week.
+  const src = readFileSync(new URL('../lib/metrics/companies.js', import.meta.url), 'utf8');
+  const bounds = [...src.matchAll(/(emailWhere|linkedinWhere)\.push\(`\$\{(emailAt|linkedinAt)\} (>=|<) \$\{(start|end)\}`\)/g)];
+  assert.equal(bounds.length, 4, 'expected one lower and one upper bound per channel');
+  for (const [, list, col] of bounds) {
+    assert.equal(col, list === 'emailWhere' ? 'emailAt' : 'linkedinAt',
+      `${list} must bound its own channel's activity column`);
+  }
+  // And neither end may reach for a different column.
+  assert.ok(!/emailWhere\.push\(`l\.created_at_src [<>]/.test(src));
+  assert.ok(!/linkedinWhere\.push\(`l\.added_at [<>]/.test(src));
+});
+
+test('a name that is really a domain is not a name, whichever source it came from', () => {
+  // The bug this replaces: the guard was applied to the lead name only, so the
+  // AI SDR registry — which stores a domain in company_name for 1,271 of its
+  // 28,525 rows — rendered "armadin.com" when "Armadin" was sitting right there.
+  assert.equal(displayCompany('armadin.com', 'Armadin', 'armadin.com'), 'Armadin');
+  assert.equal(displayCompany('hifi.com', 'HIFI', 'hifi.com'), 'HIFI');
+  // Both sources useless: the domain is the honest answer.
+  assert.equal(displayCompany('alloy.com', 'alloy.com', 'alloy.co'), 'alloy.co');
+  // But a company really named after a domain keeps its name, and keeps it over
+  // the stale employer one of its people typed. lunar.dev was labelled "Boomi".
+  assert.equal(displayCompany('Lunar.dev', 'Boomi', 'lunar.dev'), 'Lunar.dev');
+  assert.equal(displayCompany('Checkout.com', 'Evervault', 'checkout.com'), 'Checkout.com');
+  assert.equal(displayCompany('SRE.ai', null, 'sre.ai'), 'SRE.ai');
+  // No domain either: show whatever we have rather than nothing.
+  assert.equal(displayCompany('alloy.com', null, null), 'alloy.com');
 });

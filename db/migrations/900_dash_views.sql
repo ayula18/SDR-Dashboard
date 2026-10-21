@@ -176,13 +176,36 @@ resolved AS (
 -- The admin alias decides which domain a person's employer is; this folds that
 -- domain onto its company's canonical one, so LinkedIn and email land on the same
 -- key and a company worked on both channels is counted once, not twice.
+-- WHICH COMPANY THIS PERSON IS AT — decided here, once, and nowhere else.
+--
+-- It used to be decided three times with three different rules: per person at
+-- sync time, per page in the company-identity job, and AGAIN per row in a
+-- COALESCE inside lib/metrics. They disagreed, so one company could show up as
+-- several rows ("armadin.com" and "Armadin" side by side), and every fix in one
+-- place surfaced a new split in another.
+--
+-- The closure, each rung filling only the gap the one above left:
+--   1 the person's own resolved domain       (lib/outreach/linkedin.js)
+--   2 the domain this company's LinkedIn page resolved to   (017)
+--   3 the domain this stated employer name resolved to      (018)
+-- then folded onto the company's canonical domain (013).
+--
+-- company_id is what every count groups by. Anything counting companies reads
+-- it; nothing rebuilds it. When no rung found a domain the name comes before
+-- the page deliberately: everyone at a company states the same employer, while
+-- only some of them carry its page, so the name is the key that keeps them
+-- together.
 base AS (
   SELECT
     r.campaign_id, r.lead_id, r.linkedin_id, r.person_name, r.position, r.company_name, r.company_key,
-    -- Own answer first; then whatever the rest of this company's LinkedIn page
-    -- resolved to; then fold that onto the company's canonical domain.
-    COALESCE(cd.canonical_domain, COALESCE(r.resolved_domain, lcd.domain)) AS company_domain,
+    COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain) AS company_domain,
     r.resolved_domain AS company_domain_raw,
+    COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain,
+             'name:' || r.company_key, 'li:' || r.company_url) AS company_id,
+    CASE WHEN r.resolved_domain IS NOT NULL THEN 'person'
+         WHEN lcd.domain       IS NOT NULL THEN 'page'
+         WHEN cn.domain        IS NOT NULL THEN 'name'
+         ELSE 'none' END AS company_identity,
     (idom.domain IS NOT NULL) AS internal,
     r.no_company, r.resolution, r.domain_candidates, r.sender, r.campaign_status,
     r.connection_status, r.message_status, r.error_code, r.added_at, r.last_action_at,
@@ -192,9 +215,12 @@ base AS (
   FROM resolved r
   LEFT JOIN dash_linkedin_company_domains lcd
          ON r.resolved_domain IS NULL AND lcd.company_url = r.company_url
-  LEFT JOIN dash_company_domains cd ON cd.domain = COALESCE(r.resolved_domain, lcd.domain)
+  LEFT JOIN dash_company_names cn
+         ON r.resolved_domain IS NULL AND lcd.domain IS NULL AND cn.company_key = r.company_key
+  LEFT JOIN dash_company_domains cd
+         ON cd.domain = COALESCE(r.resolved_domain, lcd.domain, cn.domain)
   LEFT JOIN dash_internal_domains idom
-         ON idom.domain = COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain)
+         ON idom.domain = COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain)
 )
 SELECT
   base.*,

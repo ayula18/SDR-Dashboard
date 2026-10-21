@@ -134,3 +134,28 @@ test('a dependency on a job not in this run is not a constraint', () => {
   });
   assert.deepEqual(slices.map(s => s.job), ['child']);
 });
+
+test('the mop-up pass may spend the whole remainder, because there is no tail left to protect', () => {
+  // The first pass caps every job at half the budget so a greedy job cannot eat
+  // the jobs after it. The mop-up pass runs AFTER all of them, on time that was
+  // reserved and never used, so the same cap would simply throw half of it away.
+  const jobs = [{ name: 'heyreach', weight: 2, minSliceMs: 30_000 }];
+
+  const capped = planRun({ jobs, history: {}, now: NOW, budgetMs: 90_000, reserveMs: 0 });
+  assert.equal(capped.slices[0].budgetMs, 45_000, 'default still protects the tail');
+
+  const mopUp = planRun({ jobs, history: {}, now: NOW, budgetMs: 90_000, reserveMs: 0, maxShare: 1 });
+  assert.equal(mopUp.slices[0].budgetMs, 90_000, 'the last pass spends what is left');
+});
+
+test('the mop-up pass still shares between several unfinished jobs', () => {
+  // Two jobs out of time and one lot of leftover: neither may take all of it.
+  const { slices } = planRun({
+    jobs: [{ name: 'a', weight: 1, minSliceMs: 20_000 }, { name: 'b', weight: 1, minSliceMs: 20_000 }],
+    history: { a: { lastProgressAt: new Date(NOW - 50 * 3_600_000).toISOString() } },
+    now: NOW, budgetMs: 100_000, reserveMs: 0, maxShare: 1,
+  });
+  assert.equal(slices.length, 2);
+  assert.equal(slices.reduce((n, s) => n + s.budgetMs, 0), 100_000);
+  for (const s of slices) assert.ok(s.budgetMs >= 20_000, `${s.job} kept its floor`);
+});
