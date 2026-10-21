@@ -48,16 +48,35 @@ jobs:
 
           # --max-time clears the 300s function ceiling with margin. Retries cover
           # a cold start or a transient 502; a real failure just waits an hour.
+          #
+          # curl's own exit code is captured rather than left to `set -e`: a
+          # timeout (28) or a DNS failure (6) would otherwise kill the step with
+          # an empty log, which is the one failure mode that must stay legible.
+          set +e
           http=$(curl -sS -o response.json -w '%{http_code}' \
             --max-time 330 --retry 2 --retry-delay 15 --retry-all-errors \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             "${APP_URL%/}/api/cron/sync")
+          rc=$?
+          set -e
+
+          if [ "$rc" -ne 0 ]; then
+            echo "curl failed, exit ${rc} (28 = timed out, 6 = APP_URL did not resolve)"
+            cat response.json 2>/dev/null || true
+            exit 1
+          fi
 
           echo "HTTP ${http}"
           # The body says which jobs ran and what they did, so the Actions log is
           # readable without opening the dashboard.
           python3 -m json.tool response.json || cat response.json
 
-          # 401 means the secret drifted from Vercel's; fail loudly rather than
-          # looking healthy while syncing nothing.
-          test "$http" = "200"
+          case "$http" in
+            200) ;;
+            401) echo "::error::401 — CRON_SECRET here does not match Vercel's"; exit 1 ;;
+            404) echo "::error::404 — check APP_URL points at the deployed app"; exit 1 ;;
+            # Vercel Deployment Protection answers a scheduled caller this way,
+            # and the sync would otherwise silently never run.
+            403) echo "::error::403 — is Deployment Protection on for this project?"; exit 1 ;;
+            *) echo "::error::unexpected HTTP ${http}"; exit 1 ;;
+          esac
