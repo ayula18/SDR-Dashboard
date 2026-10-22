@@ -75,3 +75,30 @@ test('filters: one SDR filters by equality, several by list', () => {
   assert.match(scope('campaign', 'c', { sdr: ['Akhil', 'Dheeraj'] }, many), /c\.sdr = ANY\(\$1::text\[\]\)$/);
   assert.deepEqual(many.values, [['Akhil', 'Dheeraj']]);
 });
+
+test('year to date compares against the same window last year, not the months before January', () => {
+  // A ten-month YTD used to take "the previous period of the same length", which
+  // is March–December of last year: the wrong part of the calendar, carrying a
+  // December it should not and missing a January it should. Measured 2026-10-22,
+  // that understated leads at +208% when year on year was +275%.
+  const r = resolveRange('ytd', null, null, new Date(Date.UTC(2026, 9, 22)));
+  assert.equal(r.grain, 'month');
+  assert.equal(r.from, '2026-01-01');
+  assert.equal(r.periods.length, 10);
+  assert.equal(r.previous.from, '2025-01-01');
+  // Still clipped to the same day of the year, so a part-finished year is not
+  // compared with a whole one.
+  assert.equal(r.previous.toExclusive, r.toExclusive.replace('2026', '2025'));
+  assert.equal(r.comparesToLastYear, true);
+});
+
+test('every other preset still compares with the period immediately before it', () => {
+  const now = new Date(Date.UTC(2026, 9, 22));
+  for (const preset of ['this-week', 'last-week', 'last-4-weeks', 'last-12-weeks', 'this-month', 'last-month', 'last-3-months']) {
+    const r = resolveRange(preset, null, null, now);
+    assert.equal(r.comparesToLastYear, false, preset);
+    assert.ok(r.previous.toExclusive <= r.from, `${preset}: previous must end before the range starts`);
+  }
+  // A custom range is not calendar-anchored either.
+  assert.equal(resolveRange('custom', '2026-01-01', '2026-03-31', now).comparesToLastYear, false);
+});
