@@ -159,6 +159,12 @@ resolved AS (
   SELECT
     l.campaign_id, l.lead_id, l.linkedin_id, l.person_name, l.position, l.company_name, l.company_key,
     CASE WHEN a.company_key IS NULL THEN l.company_domain WHEN a.not_a_company THEN NULL ELSE a.domain END AS resolved_domain,
+    -- The closure, already applied by the company-identity job (019), admin
+    -- aliases included. Read PLAINLY — no CASE, no COALESCE — because
+    -- dash_v_meetings filters on it once per meeting and only a bare column can
+    -- use idx_dash_li_leads_canonical. Wrapping it cost 64s a query.
+    l.canonical_domain AS closed_domain,
+    COALESCE(l.company_identity, 'none') AS company_identity,
     CASE WHEN a.company_key IS NULL THEN COALESCE(l.resolution = 'no_company', FALSE) ELSE a.not_a_company END AS no_company,
     CASE WHEN a.company_key IS NULL THEN l.resolution ELSE 'admin' END AS resolution,
     l.domain_candidates, l.sender, l.campaign_status, l.connection_status, l.message_status, l.error_code,
@@ -184,11 +190,16 @@ resolved AS (
 -- several rows ("armadin.com" and "Armadin" side by side), and every fix in one
 -- place surfaced a new split in another.
 --
--- The closure, each rung filling only the gap the one above left:
+-- The closure itself runs ONCE PER SYNC, in the company-identity job, and is
+-- stored on the row (019) — not computed here. Each rung fills only the gap the
+-- one above left:
 --   1 the person's own resolved domain       (lib/outreach/linkedin.js)
 --   2 the domain this company's LinkedIn page resolved to   (017)
 --   3 the domain this stated employer name resolved to      (018)
 -- then folded onto the company's canonical domain (013).
+--
+-- Computing that here instead cost 64s on dash_v_meetings, which re-runs this
+-- view once per meeting: a COALESCE over joins cannot be indexed.
 --
 -- company_id is what every count groups by. Anything counting companies reads
 -- it; nothing rebuilds it. When no rung found a domain the name comes before
@@ -198,14 +209,10 @@ resolved AS (
 base AS (
   SELECT
     r.campaign_id, r.lead_id, r.linkedin_id, r.person_name, r.position, r.company_name, r.company_key,
-    COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain) AS company_domain,
+    r.closed_domain AS company_domain,
     r.resolved_domain AS company_domain_raw,
-    COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain,
-             'name:' || r.company_key, 'li:' || r.company_url) AS company_id,
-    CASE WHEN r.resolved_domain IS NOT NULL THEN 'person'
-         WHEN lcd.domain       IS NOT NULL THEN 'page'
-         WHEN cn.domain        IS NOT NULL THEN 'name'
-         ELSE 'none' END AS company_identity,
+    COALESCE(r.closed_domain, 'name:' || r.company_key, 'li:' || r.company_url) AS company_id,
+    r.company_identity,
     (idom.domain IS NOT NULL) AS internal,
     r.no_company, r.resolution, r.domain_candidates, r.sender, r.campaign_status,
     r.connection_status, r.message_status, r.error_code, r.added_at, r.last_action_at,
@@ -213,14 +220,9 @@ base AS (
     r.sdr, r.program, r.theme, r.excluded, r.campaign_name, r.campaign_state,
     r.best_verdict, r.last_reply_at, r.replied, r.any_positive, r.any_negative
   FROM resolved r
-  LEFT JOIN dash_linkedin_company_domains lcd
-         ON r.resolved_domain IS NULL AND lcd.company_url = r.company_url
-  LEFT JOIN dash_company_names cn
-         ON r.resolved_domain IS NULL AND lcd.domain IS NULL AND cn.company_key = r.company_key
-  LEFT JOIN dash_company_domains cd
-         ON cd.domain = COALESCE(r.resolved_domain, lcd.domain, cn.domain)
-  LEFT JOIN dash_internal_domains idom
-         ON idom.domain = COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain)
+  -- Seven rows; the three closure joins that used to sit here are now a stored
+  -- column, which is what makes company_domain indexable (019).
+  LEFT JOIN dash_internal_domains idom ON idom.domain = r.closed_domain
 )
 SELECT
   base.*,

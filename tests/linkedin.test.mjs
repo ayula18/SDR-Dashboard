@@ -146,16 +146,32 @@ test('views: our own domains and the canonical map are applied where nothing can
   // Internal rows leave at the view, not at a query site, so a new page cannot forget.
   assert.match(views, /FROM base\s*\n(?:--[^\n]*\n)*WHERE NOT base\.internal;/);
   assert.match(views, /WHERE NOT m\.internal/);
-  // Every company key is the canonical domain.
+  // Every company key is the canonical domain. The email and meetings sides fold
+  // it in live; the LinkedIn side reads it from the column the sync job stamped.
   for (const table of ['dash_company_domains cd']) assert.ok(views.includes(table), table);
   assert.ok(views.includes('COALESCE(cd.canonical_domain, l.company_domain) AS company_domain'));
-  assert.ok(views.includes('COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain) AS company_domain'));
-  // A person with no answer of their own inherits from the rest of their company's
-  // LinkedIn page; a person WITH an answer must keep it (someone who changed jobs).
-  assert.match(views, /LEFT JOIN dash_linkedin_company_domains lcd\s*\n\s*ON r\.resolved_domain IS NULL AND lcd\.company_url = r\.company_url/);
-  // And the stated employer name is the last rung, for the person who has neither.
-  assert.match(views, /LEFT JOIN dash_company_names cn\s*\n\s*ON r\.resolved_domain IS NULL AND lcd\.domain IS NULL AND cn\.company_key = r\.company_key/);
   assert.ok(views.includes('COALESCE(cd.canonical_domain, dm.company_domain) AS company_domain'));
+});
+
+test('the LinkedIn closure is read from a bare column, never recomputed in the view', () => {
+  // This is a PERFORMANCE invariant with a correctness-sized blast radius.
+  // dash_v_meetings re-runs dash_v_linkedin_leads once per meeting to attribute
+  // it. While company_domain was a COALESCE over three LEFT JOINs, nothing could
+  // index it, so each of 663 meetings rebuilt 6,271 rows: 64s a query, and the
+  // program page died on a statement timeout. Measured after: 3.4s.
+  assert.ok(views.includes('l.canonical_domain AS closed_domain'),
+    'the view must read the stored column, not rebuild the closure');
+  assert.ok(!views.includes('dash_linkedin_company_domains lcd'),
+    'the page-closure join belongs in the company-identity job now');
+  assert.ok(!views.includes('dash_company_names cn'),
+    'the name-closure join belongs in the company-identity job now');
+
+  // And the job must actually do it, or the column is never filled.
+  const job = readFileSync(new URL('../lib/sync/jobs/company-identity.js', import.meta.url), 'utf8');
+  for (const table of ['dash_linkedin_company_domains lcd', 'dash_company_names cn', 'dash_company_domains cd']) {
+    assert.ok(job.includes(table), `company-identity must apply ${table}`);
+  }
+  assert.match(job, /SET canonical_domain = r\.canonical/);
 });
 
 test('views: company_id is built once, in the view, and read everywhere else', () => {
@@ -163,7 +179,7 @@ test('views: company_id is built once, in the view, and read everywhere else', (
   // resolved to nothing; a COALESCE at the query site made that ninth person a
   // second company called "Armadin". One definition, in one place, or it recurs.
   assert.ok(views.includes(
-    `COALESCE(cd.canonical_domain, r.resolved_domain, lcd.domain, cn.domain,\n             'name:' || r.company_key, 'li:' || r.company_url) AS company_id`));
+    `COALESCE(r.closed_domain, 'name:' || r.company_key, 'li:' || r.company_url) AS company_id`));
   assert.equal(LI_COMPANY, 'l.company_id');
   assert.equal(LI_IS_COMPANY, 'NOT l.no_company AND l.company_id IS NOT NULL');
 
