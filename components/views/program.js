@@ -97,7 +97,11 @@ export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, o
     { key: 'positive', label: 'Positive', value: summary.positive, count: summary.positive, note: split('positive'), list: 'positive', converts: true },
     {
       key: 'meeting', label: 'Meeting', value: summary.withMeeting, count: summary.withMeeting, list: 'meeting', converts: true,
-      note: summary.meetings ? `${plural(summary.meetings, 'meeting')}, ${fmtInt(summary.held)} held` : null,
+      note: [
+        summary.meetings ? `${plural(summary.meetings, 'meeting')}, ${fmtInt(summary.held)} held` : null,
+        // Flagged, never counted: a meeting that arrived another way within 30 days of outreach.
+        summary.influenced ? `${plural(summary.influenced, 'other meeting')} came in another way after outreach` : null,
+      ].filter(Boolean).join(' · ') || null,
     },
     {
       key: 'pipeline', label: 'Qualified pipeline', value: summary.pipeline, money: true,

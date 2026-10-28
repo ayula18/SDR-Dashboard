@@ -438,6 +438,25 @@ export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
       render: r => <>{r.channel || <span className="muted">Not stated</span>}{r.source && r.source !== r.channel && <span className="cell-sub">{r.source}</span>}</>,
     },
     {
+      key: 'attribution',
+      label: 'Credit',
+      sort: r => (r.attribution === 'sourced' ? 2 : r.attribution === 'influenced' ? 1 : 0),
+      csv: r => (r.attribution === 'influenced'
+        ? `Influenced${r.influencedSdr ? ` (${r.influencedSdr})` : ''}${r.influencedDays != null ? `, ${r.influencedDays}d after outreach` : ''}`
+        : r.attribution === 'sourced' ? 'SDR booked' : 'Not from outreach'),
+      render: r => {
+        if (r.attribution === 'sourced') return <Badge tone="good">SDR booked</Badge>;
+        if (r.attribution !== 'influenced') return <span className="muted">–</span>;
+        const after = [r.influencedSdr, r.influencedDays != null ? `${r.influencedDays}d after outreach` : null].filter(Boolean).join(', ');
+        return (
+          <span className="cell-stack">
+            <Badge tone="warn" title={r.influencedCampaign || undefined}>Came in another way</Badge>
+            {after && <span className="cell-sub">{after}</span>}
+          </span>
+        );
+      },
+    },
+    {
       key: 'bookedVia',
       label: 'Booked via',
       sort: r => r.bookedVia,

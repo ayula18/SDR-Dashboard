@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { change, markExtremes, rate } from '../lib/metrics/format.js';
+import { totalsFromMeetings } from '../lib/metrics/meetings.js';
 import { verdictRow } from '../lib/sync/verdicts.js';
 
 // The keyword rules decide negative and automatic. A reply is positive only when its label is in
@@ -45,4 +46,17 @@ test('best/worst highlighting ignores small samples and ties', () => {
   assert.equal(rows[1].worst, true);
   assert.equal(rows[2].best, false);
   assert.equal(markExtremes([{ positiveRate: 0 }, { positiveRate: 0 }])[0].best, undefined);
+});
+
+test('meeting totals: sourced and influenced are counted apart', () => {
+  const totals = totalsFromMeetings([
+    { attribution: 'sourced', held: true, rescheduled: false },
+    { attribution: 'sourced', held: false, rescheduled: false },
+    { attribution: 'influenced', held: true, rescheduled: false },
+    { attribution: 'none', held: false, rescheduled: false },
+    { attribution: 'sourced', held: true, rescheduled: true },
+  ]);
+  assert.equal(totals.meetings, 4, 'a booking that moved is left out');
+  assert.equal(totals.sourced, 2);
+  assert.equal(totals.influenced, 1);
 });

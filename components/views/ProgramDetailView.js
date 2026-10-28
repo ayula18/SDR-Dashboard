@@ -139,7 +139,7 @@ export default function ProgramDetailView({ slug }) {
           <div className="grid-2">
             <Card className="flush" title="Meetings" subtitle="Meetings at these companies after the first touch, from Slack bookings and the audit sheet.">
               <DataTable
-                columns={meetingColumns({ teamColor, withFilters }).filter(c => ['date', 'company', 'sdr', 'held', 'dealValue'].includes(c.key))}
+                columns={meetingColumns({ teamColor, withFilters }).filter(c => ['date', 'company', 'attribution', 'sdr', 'held', 'dealValue'].includes(c.key))}
                 rows={data.meetings}
                 rowKey={r => r.id}
                 dense

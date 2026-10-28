@@ -1,0 +1,12 @@
+-- An SDR's own word on who earned a meeting, kept where no sync can wipe it.
+--
+-- 016 gave them campaign_id, created_by and entry_note, all outside
+-- MEETING_COLUMNS, so a re-sync leaves them alone. The SDR's name did not get
+-- that treatment: it was written to sdr_name, which meetings-slack,
+-- meetings-csv and meetings-hubspot all rewrite inside their windows. Nobody
+-- had used the form yet, so nothing was lost; this gives the statement a home
+-- before it can be.
+--
+-- It is also where the HubSpot SDR form's `sdr_owner` will land, for the same
+-- reason: a human said it, so a sync must not undo it.
+ALTER TABLE dash_meetings ADD COLUMN IF NOT EXISTS stated_sdr text;

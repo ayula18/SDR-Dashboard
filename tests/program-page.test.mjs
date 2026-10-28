@@ -17,6 +17,22 @@ test('program range: since-start runs from the first campaign\'s week to today, 
   assert.equal(resolveRange('since-start', null, null, MON_14_SEP).preset, 'last-4-weeks');
 });
 
+test('company funnel: a meeting that came in another way is flagged, never counted', () => {
+  const s = summarizeCompanies([
+    // An SDR booked this one, so it is the program's meeting.
+    { channels: 'email', domain: 'a.io', email: { replied: 1, positive: 1 }, linkedin: null, replied: 1, positive: 1,
+      meetings: 1, meetingsHeld: 1, influencedMeetings: 0, qualified: 1, pipeline: 5000 },
+    // This company met us, but the booking came in another way soon after outreach.
+    { channels: 'linkedin', domain: 'b.io', email: null, linkedin: { replied: 0, positive: 0 }, replied: 0, positive: 0,
+      meetings: 0, meetingsHeld: 0, influencedMeetings: 1, qualified: 0, pipeline: 0 },
+  ]);
+  assert.equal(s.withMeeting, 1, 'only the SDR-booked meeting counts');
+  assert.equal(s.meetings, 1);
+  assert.equal(s.influenced, 1, 'the other one is carried separately');
+  assert.equal(s.withInfluenced, 1);
+  assert.equal(s.pipeline, 5000);
+});
+
 test('company funnel: counts companies overall and per channel, with pipeline', () => {
   const s = summarizeCompanies([
     { channels: 'both', domain: 'a.io', email: { replied: 1, positive: 0 }, linkedin: { replied: 1, positive: 1 }, replied: 2, positive: 1, meetings: 1, meetingsHeld: 1, qualified: 1, pipeline: 5000 },

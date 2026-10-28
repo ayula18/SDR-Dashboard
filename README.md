@@ -151,9 +151,16 @@ and what came of it?
   **Held** = the sheet audited it "Yes", or a Fireflies or HubSpot meeting at that company sits
   within a day of the booked slot. Outreach views count outbound meetings plus any meeting
   attributed to a campaign.
-- **Meeting attribution**: the campaign that reached the company in the 180 days before the
-  meeting, an emailed lead or a LinkedIn person, preferring whoever replied and then whoever was
-  reached most recently.
+- **Meeting attribution**: outreach may only claim a meeting an SDR booked.
+  - **SDR booked** (`sourced`): the audit sheet names the SDR, an SDR entered the meeting against
+    their campaign, the booking link belonged to the SDR team, or the sheet classified it outbound.
+    Only these count as a campaign's, an SDR's or a program's meeting, credited to the campaign that
+    reached the company in the 180 days before, preferring whoever replied and then whoever was
+    reached most recently.
+  - **Came in another way** (`influenced`): it arrived inbound, by referral, from an AE or marketing,
+    or with nobody recorded as booking it, but we had reached that company within 30 days. It is
+    flagged beside the campaign and the SDR who did the outreach, and counted for neither.
+  - **Neither**: no outreach in those 30 days, so no campaign, SDR or program is named at all.
 - **Ranges**: whole weeks (Monday start) or months. A custom range rounds out to whole weeks, or to
   whole months when it starts on the 1st and spans a month or more, because platform volumes are
   stored per week and month. The comparison is the previous range of the same length. While a
