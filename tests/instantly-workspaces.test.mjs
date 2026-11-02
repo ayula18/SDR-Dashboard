@@ -61,3 +61,17 @@ test("archive readers ask for every workspace's source, not the string 'instantl
     );
   }
 });
+
+test('per-workspace jobs only delete and walk the workspaces this deployment can read', () => {
+  // Production ran without INSTANTLY_SEND_API_KEY. instantly-periods deleted every
+  // Instantly campaign's period and rewrote the readable workspace only, wiping the
+  // AI SDR workspace's recent weeks every run; instantly-steps hit one of its
+  // campaigns and stayed blocked for 451 runs. Each of these must name the scope.
+  const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const file of ['instantly-periods', 'instantly-steps', 'instantly-leads']) {
+    const code = strip(readFileSync(new URL(`../lib/sync/jobs/${file}.js`, import.meta.url), 'utf8'));
+    assert.match(code, /workspace = ANY\(\$\d::text\[\]\)/, `${file} must scope its campaigns to readable workspaces`);
+  }
+  const periods = strip(readFileSync(new URL('../lib/sync/jobs/instantly-periods.js', import.meta.url), 'utf8'));
+  assert.ok(!/campaign_id LIKE 'instantly:%'/.test(periods), 'the period rewrite must not delete by platform prefix alone');
+});

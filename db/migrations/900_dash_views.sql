@@ -88,6 +88,10 @@ base AS (
     l.company_name, l.status, l.interest_status, l.reply_count, l.replied_step,
     l.replied_variant, l.upload_method, l.last_step_id, l.last_sender,
     l.created_at_src, l.last_contact_at, l.last_reply_at, l.interest_changed_at, l.synced_at,
+    -- WHEN THIS LEAD WAS REACHED: its first email, never a follow-up (022, Ayush
+    -- 2026-11-02). Every range that counts reached leads or companies reads this.
+    -- LEAST skips a NULL, so a lead the archive never saw falls back to its last contact.
+    LEAST(l.first_contact_at, l.last_contact_at) AS first_contact_at,
     (idom.domain IS NOT NULL) AS internal,
     c.sdr, c.program, c.theme, c.segment, c.region, c.excluded, c.name AS campaign_name,
     (COALESCE(l.interest_status = 0, FALSE) OR COALESCE(v.only_auto, FALSE)) AS auto_only,
@@ -169,6 +173,15 @@ resolved AS (
     CASE WHEN a.company_key IS NULL THEN l.resolution ELSE 'admin' END AS resolution,
     l.domain_candidates, l.sender, l.campaign_status, l.connection_status, l.message_status, l.error_code,
     l.added_at, l.last_action_at, l.company_url, l.identity_source,
+    -- WHEN THIS PERSON WAS REACHED: the first invite or message, never what came
+    -- after (Ayush 2026-11-02, as for email). HeyReach reports only the latest action,
+    -- which IS the first one while the person has had just an invite, or just a
+    -- message; otherwise the day they were added stands in for it (measured on 15,728
+    -- invite-only people: invites go out a median 3 hours after adding, 85% the same week).
+    CASE WHEN l.last_action_at IS NOT NULL AND (
+              (l.connection_status = 'ConnectionSent' AND COALESCE(l.message_status, 'None') = 'None')
+           OR (COALESCE(l.connection_status, 'None') = 'None' AND l.message_status = 'MessageSent'))
+         THEN l.last_action_at ELSE l.added_at END AS first_touch_at,
     c.sdr, c.program, c.theme, c.excluded, c.name AS campaign_name, c.status AS campaign_state,
     o.best_verdict, o.last_reply_at,
     CASE WHEN o.lead_id IS NULL THEN COALESCE(l.message_status = 'MessageReply', FALSE) ELSE NOT o.only_auto END AS replied,
@@ -216,7 +229,7 @@ base AS (
     (idom.domain IS NOT NULL) AS internal,
     r.no_company, r.resolution, r.domain_candidates, r.sender, r.campaign_status,
     r.connection_status, r.message_status, r.error_code, r.added_at, r.last_action_at,
-    r.company_url, r.identity_source,
+    r.first_touch_at, r.company_url, r.identity_source,
     r.sdr, r.program, r.theme, r.excluded, r.campaign_name, r.campaign_state,
     r.best_verdict, r.last_reply_at, r.replied, r.any_positive, r.any_negative
   FROM resolved r
@@ -361,7 +374,12 @@ LEFT JOIN LATERAL (
              l.last_contact_at AS touched_at
         FROM dash_leads l
         JOIN dash_v_campaigns c ON c.id = l.campaign_id AND NOT c.excluded
-       WHERE l.company_domain = m.company_domain
+       -- dash_leads holds the RAW spelling and m.company_domain is canonical, so a plain
+       -- equality missed a meeting at qdrant.tech whose campaign emailed qdrant.io. Every
+       -- spelling of the company is matched, still through idx_dash_leads_domain.
+       WHERE l.company_domain IN (SELECT m.company_domain
+                                  UNION ALL
+                                  SELECT cd.domain FROM dash_company_domains cd WHERE cd.canonical_domain = m.company_domain)
          AND l.created_at_src <  (m.meeting_date + 1)
          AND l.created_at_src >= (m.meeting_date - 180)
       UNION ALL

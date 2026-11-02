@@ -16,7 +16,7 @@ import ConversationPanel from './ConversationPanel';
 import { ReplyFeed, SyncStatus, useProgramName } from './common';
 import { MeetingsPanel, OverviewLead, OverviewTiles, programColumns } from './overview';
 import {
-  ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramTrend, bySdrColumns, programCompanyColumns,
+  ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
 
 // The overview lists the companies that replied or took a meeting, not every
@@ -112,9 +112,7 @@ export default function OverviewView() {
             subtitle="Every company that replied or took a meeting after being touched in this range, furthest stage first. Open one to read the conversation."
             footnote={[
               data.companiesCapped ? 'Only the first 1,000 are listed.' : null,
-              summary.withoutDomain
-                ? `${fmtInt(summary.withoutDomain)} LinkedIn ${summary.withoutDomain === 1 ? 'company has' : 'companies have'} no matching domain yet, so email outreach and meetings can't be joined to ${summary.withoutDomain === 1 ? 'it' : 'them'}. Admins can map them in Data health.`
-                : null,
+              unresolvedNote(summary),
             ].filter(Boolean).join(' ') || undefined}
           >
             <DataTable

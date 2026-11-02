@@ -73,6 +73,16 @@ export function ProgramLead({ name, range, summary, channel, companies }) {
 }
 
 /**
+ * The LinkedIn people a company funnel leaves out because their employer has no
+ * domain (LI_IS_COMPANY in lib/metrics/linkedin.js), or null when there are none.
+ */
+export function unresolvedNote(summary) {
+  const u = summary?.unresolved;
+  if (!u?.people) return null;
+  return `${plural(u.people, 'LinkedIn person', 'LinkedIn people')} reached at ${plural(u.employers, 'employer')} with no matching domain ${u.people === 1 ? 'is' : 'are'} counted as people reached, not as companies. Admins can map an employer to its domain in Data health.`;
+}
+
+/**
  * Unique companies → replied → positive → meeting → pipeline. Every step counts
  * companies, so each one is a subset of the step above it and the percentages
  * mean what they look like. A step whose list the page holds opens it;

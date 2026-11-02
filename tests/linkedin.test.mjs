@@ -181,7 +181,9 @@ test('views: company_id is built once, in the view, and read everywhere else', (
   assert.ok(views.includes(
     `COALESCE(r.closed_domain, 'name:' || r.company_key, 'li:' || r.company_url) AS company_id`));
   assert.equal(LI_COMPANY, 'l.company_id');
-  assert.equal(LI_IS_COMPANY, 'NOT l.no_company AND l.company_id IS NOT NULL');
+  // A person counts toward a company only once their employer has a domain (2026-11-02);
+  // company_id still keys them, and for those people it IS the domain.
+  assert.equal(LI_IS_COMPANY, 'NOT l.no_company AND l.company_domain IS NOT NULL');
 
   // No query site may rebuild it. These are the two that used to, each with a
   // DIFFERENT rule, so one company answered to two keys depending on the page.
@@ -200,7 +202,7 @@ test('company date filters bound the same column at both ends', () => {
   // ended, and one company showed in This week and Last week at once. Measured
   // 2026-10-20: 62 of Last week's 520 companies were never contacted last week.
   const src = readFileSync(new URL('../lib/metrics/companies.js', import.meta.url), 'utf8');
-  const bounds = [...src.matchAll(/(emailWhere|linkedinWhere)\.push\(`\$\{(emailAt|linkedinAt)\} (>=|<) \$\{(start|end)\}`\)/g)];
+  const bounds = [...src.matchAll(/(emailWhere|linkedinReached)\.push\(`\$\{(emailAt|linkedinAt)\} (>=|<) \$\{(start|end)\}`\)/g)];
   assert.equal(bounds.length, 4, 'expected one lower and one upper bound per channel');
   for (const [, list, col] of bounds) {
     assert.equal(col, list === 'emailWhere' ? 'emailAt' : 'linkedinAt',
@@ -208,7 +210,7 @@ test('company date filters bound the same column at both ends', () => {
   }
   // And neither end may reach for a different column.
   assert.ok(!/emailWhere\.push\(`l\.created_at_src [<>]/.test(src));
-  assert.ok(!/linkedinWhere\.push\(`l\.added_at [<>]/.test(src));
+  assert.ok(!/linkedinReached\.push\(`l\.added_at [<>]/.test(src));
 });
 
 test('a name that is really a domain is not a name, whichever source it came from', () => {

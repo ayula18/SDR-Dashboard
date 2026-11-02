@@ -76,7 +76,7 @@ const REPLY_NOTE = { both: 'People who replied on either channel', email: 'Leads
 export function OverviewTiles({ tiles, channel }) {
   return (
     <div className="tiles">
-      <KpiTile label="Companies reached" kpi={tiles.companies} note="Unique companies touched" />
+      <KpiTile label="Companies reached" kpi={tiles.companies} note="Unique companies, at their first email or invite" />
       <KpiTile label="Replies" kpi={tiles.replies} note={REPLY_NOTE[channel]} />
       <KpiTile label="Positive replies" kpi={tiles.positive} />
       <KpiTile label="Meetings" kpi={tiles.meetings} note="By the date they were held" />

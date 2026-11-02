@@ -37,9 +37,11 @@ test('company funnel: counts companies overall and per channel, with pipeline', 
   const s = summarizeCompanies([
     { channels: 'both', domain: 'a.io', email: { replied: 1, positive: 0 }, linkedin: { replied: 1, positive: 1 }, replied: 2, positive: 1, meetings: 1, meetingsHeld: 1, qualified: 1, pipeline: 5000 },
     { channels: 'email', domain: 'b.io', email: { replied: 0, positive: 0 }, linkedin: null, replied: 0, positive: 0, meetings: 0, pipeline: 0 },
-    { channels: 'linkedin', domain: null, email: null, linkedin: { replied: 1, positive: 0 }, replied: 1, positive: 0, meetings: 0, pipeline: 0 },
-  ]);
-  assert.deepEqual([s.total, s.replied, s.positive, s.withMeeting, s.pipeline, s.withoutDomain], [3, 2, 1, 1, 5000, 1]);
+    { channels: 'linkedin', domain: 'c.io', email: null, linkedin: { replied: 1, positive: 0 }, replied: 1, positive: 0, meetings: 0, pipeline: 0 },
+  ], { people: 4, employers: 3 });
+  assert.deepEqual([s.total, s.replied, s.positive, s.withMeeting, s.pipeline], [3, 2, 1, 1, 5000]);
+  // LinkedIn people at an employer with no domain are not companies; they travel beside the funnel.
+  assert.deepEqual(s.unresolved, { people: 4, employers: 3 });
   assert.deepEqual(s.email, { touched: 2, replied: 1, positive: 0 });
   assert.deepEqual(s.linkedin, { touched: 2, replied: 2, positive: 1 });
   // The channel parts add up to each step, where the per-channel counts above overlap.

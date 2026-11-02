@@ -14,7 +14,7 @@ import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import ConversationPanel from './ConversationPanel';
 import { ReplyFeed, SyncStatus, campaignColumns, meetingColumns, useProgramName } from './common';
 import {
-  ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramLead, ProgramTrend, bySdrColumns, programCompanyColumns,
+  ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramLead, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
 
 const SINCE_START = [{ value: 'since-start', label: 'Since start' }];
@@ -95,9 +95,7 @@ export default function ProgramDetailView({ slug }) {
             className="flush"
             title="Companies"
             subtitle={`${data.range.sinceStart ? 'Every company this program touched' : 'Companies touched in this range'}, furthest stage first. Open a company to read the conversation.`}
-            footnote={summary.withoutDomain
-              ? `${fmtInt(summary.withoutDomain)} LinkedIn ${summary.withoutDomain === 1 ? 'company has' : 'companies have'} no matching domain yet, so email outreach and meetings can't be joined to ${summary.withoutDomain === 1 ? 'it' : 'them'}. Admins can map them in Data health.`
-              : undefined}
+            footnote={unresolvedNote(summary) || undefined}
           >
             <DataTable
               columns={programCompanyColumns(view)}
