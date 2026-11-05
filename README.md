@@ -217,5 +217,5 @@ Admin only:
   several companies). They show by name until an admin maps them in Data health.
 - The people in paused and finished HeyReach campaigns keep the status they had when last read;
   invites accepted after a campaign stops only show in the campaign totals from `heyreach`.
-- Meetings are imported from a CSV. Pointing the importer at the live Google Sheet needs its ID.
+- Meetings are imported from a CSV exported on 10 Sep 2026. The live Google Sheet stops at August too and has no audited column, so qualified and deal value are empty after that; the data warnings say so.
 # SDR-Dashboard

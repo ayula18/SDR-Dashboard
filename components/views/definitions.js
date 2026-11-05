@@ -38,4 +38,6 @@ export const DEFS = {
   meetingsEmail: 'Booked by SDRs from an email campaign, by meeting date',
   meetingsLinkedin: 'Booked by SDRs from a LinkedIn campaign, by meeting date',
   positiveRate: 'Email only: positive email replies that came in, per first email sent, in the same dates',
+  ratesEmail: 'Out of the people first emailed in these dates. Positives and meetings count on the day they happen, so some come from people emailed earlier.',
+  ratesLinkedin: 'Out of the invites sent in these dates. Acceptances, positives and meetings count on the day they happen, so some come from earlier invites.',
 };

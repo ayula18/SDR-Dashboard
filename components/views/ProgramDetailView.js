@@ -15,7 +15,7 @@ import ConversationPanel from './ConversationPanel';
 import { PositiveResponses, ReplyFeed, SyncStatus, campaignColumns, meetingColumns, useProgramName } from './common';
 import { DEFS } from './definitions';
 import {
-  ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramLead, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
+  ChannelCards, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramLead, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
 
 const SINCE_START = [{ value: 'since-start', label: 'Since start' }];
@@ -83,14 +83,7 @@ export default function ProgramDetailView({ slug }) {
 
           <CompanyFunnel summary={summary} channel={view} range={data.range} onOpenList={openList} />
 
-          {view === 'both' ? (
-            <div className="grid-2">
-              <ChannelCard channel="email" numbers={data.email} change={data.change?.email} />
-              <ChannelCard channel="linkedin" numbers={data.linkedin} change={data.change?.linkedin} />
-            </div>
-          ) : (
-            <ChannelCard channel={view} numbers={data[view]} change={data.change?.[view]} />
-          )}
+          <ChannelCards view={view} data={data} />
 
           <Card
             className="flush"

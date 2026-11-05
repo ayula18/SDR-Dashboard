@@ -200,6 +200,54 @@ export function ChannelCard({ channel, numbers, change }) {
   );
 }
 
+/**
+ * One channel's rates for the range. Email is per person emailed, LinkedIn per invite
+ * sent. Each shows the two numbers behind it, so a rate on a small base reads as one.
+ */
+export function ChannelRatesCard({ channel, numbers, change }) {
+  if (!numbers) return null;
+  const email = channel === 'email';
+  const base = email ? numbers.peopleEmailed : numbers.invitesSent;
+  const unit = email ? 'people emailed' : 'invites sent';
+  const stats = [
+    ...(email ? [] : [{ key: 'acceptanceRate', label: 'Acceptance %', count: numbers.accepted, digits: 1 }]),
+    { key: 'positiveRate', label: 'Positive response %', count: numbers.positive, digits: 2 },
+    { key: 'meetingRate', label: 'Meetings booked %', count: numbers.meetings, digits: 2 },
+  ];
+  return (
+    <Card title={email ? 'Email %' : 'LinkedIn %'} subtitle={email ? DEFS.ratesEmail : DEFS.ratesLinkedin}>
+      <div className={email ? 'mini-stats mini-stats-2' : 'mini-stats'}>
+        {stats.map(s => (
+          <div key={s.key} className="mini-stat">
+            <span className="mini-stat-label">{s.label}</span>
+            <span className="mini-stat-value">
+              {fmtPct(numbers[s.key], s.digits)}
+              {change && <Delta small points={change[s.key]} />}
+            </span>
+            <span className="tile-foot-text">{fmtInt(s.count)} of {fmtInt(base)} {unit}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** The counts and the rates, for one channel or both side by side. */
+export function ChannelCards({ view, data }) {
+  const cards = view === 'both' ? ['email', 'linkedin'] : [view];
+  const both = cards.length === 2;
+  return (
+    <>
+      <div className={both ? 'grid-2' : undefined}>
+        {cards.map(channel => <ChannelCard key={channel} channel={channel} numbers={data[channel]} change={data.change?.[channel]} />)}
+      </div>
+      <div className={both ? 'grid-2' : undefined}>
+        {cards.map(channel => <ChannelRatesCard key={channel} channel={channel} numbers={data[channel]} change={data.change?.[channel]} />)}
+      </div>
+    </>
+  );
+}
+
 /** What went out and what came back per week or month, each series keeping its colour whichever channel is shown. */
 export function ProgramTrend({ rows, grain, channel }) {
   const email = channel !== 'linkedin';

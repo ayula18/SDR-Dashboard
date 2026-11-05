@@ -17,7 +17,7 @@ import { PositiveResponses, ReplyFeed, SyncStatus, useProgramName } from './comm
 import { DEFS } from './definitions';
 import { MeetingsPanel, OverviewLead, OverviewTiles, programColumns } from './overview';
 import {
-  ChannelCard, ChannelToggle, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
+  ChannelCards, ChannelToggle, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
 
 /**
@@ -73,14 +73,7 @@ export default function OverviewView() {
           <OverviewLead summary={summary} tiles={data.tiles} range={data.range} channel={view} companies={data.companies} />
           <OverviewTiles tiles={data.tiles} channel={view} />
 
-          {view === 'both' ? (
-            <div className="grid-2">
-              <ChannelCard channel="email" numbers={data.email} change={data.change?.email} />
-              <ChannelCard channel="linkedin" numbers={data.linkedin} change={data.change?.linkedin} />
-            </div>
-          ) : (
-            <ChannelCard channel={view} numbers={data[view]} change={data.change?.[view]} />
-          )}
+          <ChannelCards view={view} data={data} />
 
           <ProgramTrend rows={data.trend} grain={grain} channel={view} />
 
