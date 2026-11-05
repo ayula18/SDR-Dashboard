@@ -94,8 +94,8 @@ export function KpiTiles({ kpis }) {
   return (
     <div className="tiles">
       <KpiTile label="First emails sent" kpi={kpis.emailsSent} note={DEFS.firstEmails} />
-      <KpiTile label="Replies" kpi={kpis.replies} note={DEFS.replied} />
-      <KpiTile label="Positive replies" kpi={kpis.positive} note={DEFS.positive} />
+      <KpiTile label="Replies" kpi={kpis.replies} note={DEFS.repliedBoth} />
+      <KpiTile label="Positive replies" kpi={kpis.positive} note={DEFS.positiveSdr} />
       <KpiTile label="Positive rate" kpi={kpis.positiveRate} rate format={v => fmtPct(v)} note={DEFS.positiveRate} />
       <KpiTile label="Meetings" kpi={kpis.meetings} note={DEFS.meetings} />
     </div>
@@ -154,8 +154,8 @@ export function TrendCards({ rows, grain }) {
   const tip = row => fmtPeriod(grain, row.period, { long: true });
   const volume = [{ key: 'sent', label: 'First emails', color: SERIES[0] }];
   const outcomes = [
-    { key: 'replies', label: 'Replies', color: SERIES[0] },
-    { key: 'positive', label: 'Positive replies', color: SERIES[1] },
+    { key: 'allReplies', label: 'Replies', color: SERIES[0] },
+    { key: 'allPositive', label: 'Positive replies', color: SERIES[1] },
     { key: 'meetings', label: 'Meetings', color: SERIES[2] },
   ];
   const xLabel = unit === 'month' ? 'Month' : 'Week';
@@ -476,15 +476,18 @@ export function accountColumns() {
   ];
 }
 
+const POSITIVE_SOURCE = { sheet: 'Sheet', booked: 'Booked meeting', labels: 'Reply label' };
+
 /**
  * The positive responses behind a range and what each person said. SDR rows are
  * from the positive response sheet, which holds no reply text: it is matched from
- * our conversations, and where we hold no reply the SDR's own note stands in.
+ * our conversations, and where we hold no reply the SDR's own note stands in. A
+ * booking nobody logged shows the reply that led to it, or the meeting.
  */
 export function PositiveResponses({ rows = [], onOpen, exportName = 'positive-responses', withSdr = true }) {
   const columns = [
-    { key: 'at', label: 'Date', sort: r => r.at, csv: r => String(r.at).slice(0, 10), render: r => fmtDate(r.at, { year: true }) },
-    { key: 'name', label: 'Person', sort: r => r.name, csv: r => r.name, render: r => cellStack(r.name || '-', r.company) },
+    { key: 'at', label: 'Date', sort: r => r.at, csv: r => String(r.at).slice(0, 10), render: r => <span className="nowrap">{fmtDate(r.at, { year: true })}</span> },
+    { key: 'name', label: 'Person', sort: r => r.name, csv: r => r.name, render: r => <span className="cell-stack start">{r.name || '-'}{r.company && <span className="cell-sub">{r.company}</span>}</span> },
     withSdr && { key: 'sdr', label: 'SDR', sort: r => r.sdr || '', csv: r => r.sdr || '', render: r => r.sdr || <span className="muted">-</span> },
     { key: 'channel', label: 'Channel', sort: r => r.channel, csv: r => r.channel, render: r => (r.channel === 'email' ? 'Email' : 'LinkedIn') },
     {
@@ -493,10 +496,10 @@ export function PositiveResponses({ rows = [], onOpen, exportName = 'positive-re
       csv: r => r.quote || r.note || '',
       render: r => (r.quote
         ? <span className="positive-said">“{r.quote}”</span>
-        : <span className="positive-said muted">{r.note ? `SDR note: ${r.note}` : 'Reply not in our conversations'}</span>),
+        : <span className="positive-said muted">{r.note ? (r.source === 'booked' ? r.note : `SDR note: ${r.note}`) : 'Reply not in our conversations'}</span>),
     },
     { key: 'status', label: 'Status', sort: r => r.status || '', csv: r => r.status || '', render: r => r.status || <span className="muted">-</span> },
-    { key: 'source', label: 'From', sort: r => r.source, csv: r => r.source, render: r => <span className="muted">{r.source === 'sheet' ? 'Sheet' : 'Reply label'}</span> },
+    { key: 'source', label: 'From', sort: r => r.source, csv: r => r.source, render: r => <span className="muted nowrap">{POSITIVE_SOURCE[r.source]}</span> },
   ].filter(Boolean);
   return (
     <DataTable

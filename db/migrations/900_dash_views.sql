@@ -7,19 +7,24 @@
 -- it runs after every table migration whose columns it reads.
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- dash_v_meetings reads dash_v_linkedin_leads, so it drops first.
+-- A view drops before anything it reads, or Postgres refuses and the whole file
+-- rolls back: meetings reads the LinkedIn people, both people views read the sheet,
+-- and the sheet reads campaigns. tests/positive-sheet.test.mjs checks this order.
 DROP VIEW IF EXISTS dash_v_meetings;
-DROP VIEW IF EXISTS dash_v_sheet_positives;
 DROP VIEW IF EXISTS dash_v_linkedin_leads;
 DROP VIEW IF EXISTS dash_v_leads;
+DROP VIEW IF EXISTS dash_v_sheet_positives;
 DROP VIEW IF EXISTS dash_v_campaigns;
 DROP VIEW IF EXISTS dash_v_reply_verdicts;
 
 -- Reply verdicts, preferring GPT-4.1 mini's label (004_dash_reply_llm.sql) over
 -- the rule-based one written at sync time, once the model has read the reply.
---   is_positive  interested or not now (POSITIVE_VERDICTS in lib/metrics/format.js).
---                A reply with no clear intent, such as saying they are already a
---                customer, or from the wrong person is not positive
+--   is_positive  interested (POSITIVE_VERDICTS in lib/metrics/format.js). Not now stopped
+--                counting on 2026-11-05 (Ayush: "without a solid proof dont count"):
+--                SDRs log 19% of those, and the ones that mattered here read "not
+--                interested at the moment" or an out-of-office. On the sheet it still
+--                counts. A reply with no clear intent, such as saying they are already
+--                a customer, or from the wrong person is not positive
 --   is_negative  declined or unsubscribed
 --   is_auto      not a response to our outreach: auto-replies, and off_topic
 --                messages such as job requests or people pitching us
@@ -28,7 +33,7 @@ SELECT
   v.id, v.platform, v.campaign_external_id, v.person_email, v.person_name, v.person_linkedin_id, v.company_domain,
   v.sender, v.replied_at,
   COALESCE(v.llm_verdict, v.verdict) AS verdict,
-  COALESCE(v.llm_verdict, v.verdict) IN ('interested', 'deferred') AS is_positive,
+  COALESCE(v.llm_verdict, v.verdict) IN ('interested') AS is_positive,
   CASE WHEN v.llm_verdict IS NULL THEN v.is_negative ELSE v.llm_verdict IN ('declined', 'unsubscribed') END AS is_negative,
   CASE WHEN v.llm_verdict IS NULL THEN v.is_auto ELSE v.llm_verdict IN ('auto', 'off_topic') END AS is_auto,
   CASE WHEN v.llm_verdict IS NULL THEN 'rules' ELSE 'llm' END AS classifier,
@@ -57,19 +62,26 @@ SELECT
            IS DISTINCT FROM 'ai-sdr')) AS excluded,
   (o.campaign_id IS NOT NULL) AS overridden,
   -- Whose positives come from the SDRs' positive response sheet (026). Every other
-  -- campaign, AI SDR included, stays on our reply labels (Ayush, 2026-11-05).
-  COALESCE(t.logs_positives, FALSE) AS positives_from_sheet
+  -- campaign, AI SDR included, stays on our reply labels (Ayush, 2026-11-05), and so
+  -- do programs whose replies are not logged there yet (027). A sheet row can still
+  -- land on those: sdr_logs_positives says who can be credited, positives_from_sheet
+  -- whether the sheet alone decides.
+  COALESCE(t.logs_positives, FALSE) AS sdr_logs_positives,
+  (COALESCE(t.logs_positives, FALSE) AND NOT COALESCE(p.positives_from_labels, FALSE)) AS positives_from_sheet
 FROM dash_campaigns c
 LEFT JOIN dash_campaign_overrides o ON o.campaign_id = c.id
-LEFT JOIN dash_team t ON t.name = CASE WHEN o.sdr IS NULL THEN c.parsed_sdr ELSE NULLIF(o.sdr, '') END;
+LEFT JOIN dash_team t ON t.name = CASE WHEN o.sdr IS NULL THEN c.parsed_sdr ELSE NULLIF(o.sdr, '') END
+LEFT JOIN dash_programs p ON p.slug = CASE WHEN o.program IS NULL THEN c.parsed_program ELSE NULLIF(o.program, '') END;
 
 -- The rows of the positive response sheet that count, with what their campaign
 -- says. sdr is who the SHEET credits, which can differ from the campaign's owner.
 -- campaign_id and lead_id are empty when the person could not be tied to a lead in
 -- an SDR campaign: the row still counts for the SDR and the totals.
+-- tab 'meeting' is an SDR booking nobody logged, the waterfall's second rung
+-- (bookedPositives in lib/outreach/positive-sheet.js); it counts the same way.
 CREATE VIEW dash_v_sheet_positives AS
 SELECT
-  s.key, s.channel, s.replied_on, (s.replied_on::timestamp AT TIME ZONE 'UTC') AS replied_at,
+  s.key, s.tab, s.channel, s.replied_on, (s.replied_on::timestamp AT TIME ZONE 'UTC') AS replied_at,
   s.person_name, s.company_name, s.company_domain, s.sdr, s.sender, s.status, s.notes, s.comments, s.match_kind,
   s.person_email, s.linkedin_id, s.campaign_id, s.lead_id,
   c.program, c.theme, c.name AS campaign_name, dl.replied_step
@@ -84,13 +96,15 @@ WHERE s.skip_reason IS NULL AND s.replied_on IS NOT NULL AND idom.domain IS NULL
 --   replied   a human replied (reply_count > 0, and not only auto-replies or off-topic messages)
 --   negative  replied, and said no: Not Interested / Lost in Instantly,
 --             unsubscribed, or the reply was labelled declined or unsubscribed
---   positive  in an SDR's campaign: logged on the positive response sheet, and nothing
---             else (Ayush, 2026-11-05). A person on the sheet has replied and has
---             not said no, whatever the archive holds.
---             Any other campaign: replied, not negative, and a clear yes or not now:
---             a reply labelled interested or not now, or the lead marked Interested,
---             Meeting booked, Meeting completed or Won in Instantly. A reply with no
---             clear intent or from the wrong person is replied, not positive
+--   positive  logged on the positive response sheet. A person on the sheet has
+--             replied and has not said no, whatever the archive holds. In an SDR's
+--             campaign nothing else counts (Ayush, 2026-11-05).
+--             Any other campaign, and programs still on labels (027): also replied,
+--             and a clear yes: a reply labelled interested, or the lead marked
+--             Interested, Meeting booked, Meeting completed or Won in Instantly while
+--             nothing says no. Someone who started positive stays
+--             positive if they say no later (Ayush, 2026-11-05). A reply with no clear
+--             intent or from the wrong person is replied, not positive
 CREATE VIEW dash_v_leads AS
 WITH verdicts AS (
   SELECT campaign_external_id, person_email,
@@ -130,7 +144,7 @@ base AS (
     -- first reply labelled so. Instantly's lead holds only its LAST reply, so the
     -- archive decides; until a reply is archived that last reply stands in.
     COALESCE(v.first_reply_at, l.last_reply_at, sheet.first_at) AS first_reply_at,
-    CASE WHEN c.positives_from_sheet THEN sheet.first_at
+    CASE WHEN c.positives_from_sheet OR sheet.lead_id IS NOT NULL THEN sheet.first_at
          ELSE COALESCE(v.first_positive_at, v.first_reply_at, l.last_reply_at) END AS positive_at,
     COALESCE(v.first_negative_at, v.first_reply_at, l.last_reply_at) AS negative_at,
     (idom.domain IS NOT NULL) AS internal,
@@ -141,7 +155,8 @@ base AS (
        OR COALESCE(l.status = -2, FALSE)
        OR COALESCE(v.any_negative, FALSE)) AS negative_signal,
     (COALESCE(l.interest_status IN (1, 2, 3, 4), FALSE)
-       OR COALESCE(v.any_positive, FALSE)) AS positive_signal
+       OR COALESCE(v.any_positive, FALSE)) AS positive_signal,
+    COALESCE(v.any_positive, FALSE) AS said_yes
   FROM dash_leads l
   JOIN dash_v_campaigns c ON c.id = l.campaign_id
   LEFT JOIN dash_company_domains cd ON cd.domain = l.company_domain
@@ -154,10 +169,13 @@ SELECT
   (base.last_contact_at IS NOT NULL)                                                                  AS contacted,
   (base.on_sheet OR (base.reply_count > 0 AND NOT base.auto_only))                                    AS replied,
   (NOT base.on_sheet AND base.reply_count > 0 AND NOT base.auto_only AND base.negative_signal)        AS negative,
-  CASE WHEN base.positives_from_sheet THEN base.on_sheet
-       ELSE (base.reply_count > 0 AND NOT base.auto_only AND NOT base.negative_signal AND base.positive_signal)
-  END                                                                                                 AS positive
+  label.labelled_positive,
+  (base.on_sheet OR (NOT base.positives_from_sheet AND label.labelled_positive))                      AS positive
 FROM base
+CROSS JOIN LATERAL (
+  SELECT (base.reply_count > 0 AND NOT base.auto_only
+          AND (base.said_yes OR (base.positive_signal AND NOT base.negative_signal))) AS labelled_positive
+) label
 -- Our own seeded addresses are not prospects. Dropped here rather than in each
 -- query, because a page that forgot would quietly report reo.dev as a company.
 WHERE NOT base.internal;
@@ -175,11 +193,12 @@ WHERE NOT base.internal;
 --              decide, so auto-replies and off-topic messages don't count;
 --              until then HeyReach's own replied status does
 --   negative   replied, and a reply was labelled declined or unsubscribed
---   positive   in an SDR's campaign: logged on the positive response sheet, and
---              nothing else (Ayush, 2026-11-05). A person on the sheet has replied
---              and has not said no, whatever the archive holds.
---              Any other campaign: replied, not negative, and a reply was labelled
---              interested or not now
+--   positive   logged on the positive response sheet. A person on the sheet has
+--              replied and has not said no, whatever the archive holds. In an SDR's
+--              campaign nothing else counts (Ayush, 2026-11-05).
+--              Any other campaign, and programs still on labels (027): also replied
+--              and a reply was labelled interested, even if they said no later
+--              (Ayush, 2026-11-05)
 --
 -- Each labelled reply belongs to the latest campaign that added its writer before
 -- it came in, so someone in two campaigns is not counted as replying twice.
@@ -245,7 +264,7 @@ resolved AS (
     -- When each outcome landed, as for email. A reply HeyReach reports but the
     -- archive has not caught up with is dated by HeyReach's latest action.
     COALESCE(o.first_reply_at, sheet.first_at, l.last_action_at) AS first_reply_at,
-    CASE WHEN c.positives_from_sheet THEN sheet.first_at
+    CASE WHEN c.positives_from_sheet OR sheet.lead_id IS NOT NULL THEN sheet.first_at
          ELSE COALESCE(o.first_positive_at, o.first_reply_at, l.last_action_at) END AS positive_at,
     COALESCE(o.first_negative_at, o.first_reply_at, l.last_action_at) AS negative_at,
     -- The first message to this person in this campaign (025), follow-ups not counted.
@@ -316,15 +335,19 @@ SELECT
   COALESCE(base.connection_status IN ('ConnectionSent', 'ConnectionAccepted')
         OR base.message_status IN ('MessageSent', 'MessageReply'), FALSE)            AS reached,
   (base.replied AND base.any_negative AND NOT base.on_sheet)                         AS negative,
-  CASE WHEN base.positives_from_sheet THEN base.on_sheet
-       ELSE (base.replied AND NOT base.any_negative AND base.any_positive) END       AS positive
+  label.labelled_positive,
+  (base.on_sheet OR (NOT base.positives_from_sheet AND label.labelled_positive))     AS positive
 FROM base
+CROSS JOIN LATERAL (
+  SELECT (base.replied AND base.any_positive) AS labelled_positive
+) label
 WHERE NOT base.internal;
 
--- Meetings from three sources, and what outreach may claim of them.
+-- Meetings from four sources, and what outreach may claim of them.
 --   'slack'    the booking bot's alert, in the archive the morning after it is booked
 --   'sheet'    the qualified-meetings audit, which alone carries qualified and deal value
---   'hubspot'  a first meeting HubSpot knows about that neither of the others has
+--   'form'     the SDR form on a HubSpot deal, naming an SDR, where no other source has it
+--   'hubspot'  a first meeting HubSpot knows about that none of the others has
 -- When two describe the same company within three days, the sheet's row is kept,
 -- so a meeting is never counted twice.
 --
@@ -347,26 +370,44 @@ WITH m AS (
     dm.confidence, dm.source_file, dm.imported_at, dm.source, dm.outcome, dm.evidence_source,
     dm.evidence_note, dm.evidence_at, dm.superseded_by, dm.booking_qualified,
     dm.qualification_note, dm.booking_action, dm.booked_via, dm.heard_from,
-    dm.campaign_id AS stated_campaign_id, dm.created_by, dm.entry_note, dm.stated_sdr
+    dm.campaign_id AS stated_campaign_id, dm.created_by, dm.entry_note, dm.stated_sdr,
+    form.sdr AS form_sdr, form.owner_raw AS form_owner, form.booked_on AS form_booked_on,
+    -- DID AN SDR BOOK IT, decided here once. The waterfall (Ayush, 2026-11-05):
+    --   1 the SDR said so themselves, on the meetings page
+    --   2 the SDR form on the HubSpot deal names a person
+    --   3 that form names something else: Ads, Inbound, Referral, Ecosystem
+    --   4 the audit sheet or booking alert names an SDR, or calls the channel SDR
+    -- The audit sheet's direction is not read: it says Outbound on Referral and Ads too.
+    CASE
+      WHEN dm.stated_sdr IS NOT NULL OR dm.campaign_id IS NOT NULL THEN TRUE
+      WHEN form.sdr IS NOT NULL THEN TRUE
+      WHEN form.not_sdr THEN FALSE
+      ELSE COALESCE(dm.sdr_name IS NOT NULL OR dm.channel ILIKE 'sdr%', FALSE)
+    END AS sdr_booked,
+    COALESCE(form.not_sdr, FALSE) AS form_says_other
   FROM dash_meetings dm
   LEFT JOIN dash_company_domains cd ON cd.domain = dm.company_domain
   LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cd.canonical_domain, dm.company_domain)
+  -- The form's date can sit a little off the booking when a meeting moves, so the same
+  -- 14 days the job uses to decide a form row needs a meeting of its own (028).
+  LEFT JOIN LATERAL (
+    SELECT f.sdr, f.not_sdr, f.owner_raw, f.booked_on
+      FROM dash_sdr_form f
+     WHERE f.company_domain = COALESCE(cd.canonical_domain, dm.company_domain)
+       AND f.meeting_date BETWEEN dm.meeting_date - 14 AND dm.meeting_date + 14
+     ORDER BY (f.sdr IS NOT NULL) DESC, f.not_sdr DESC, abs(f.meeting_date - dm.meeting_date)
+     LIMIT 1
+  ) form ON TRUE
 )
 SELECT
   m.*,
   -- Who booked it, which is what decides whether outreach may claim it:
-  --   sdr      an SDR did: the audit sheet names them, they entered the meeting
-  --            against their own campaign, the booking link belonged to the SDR
-  --            team, or the sheet classified the meeting outbound
+  --   sdr      an SDR did: see sdr_booked above
   --   other    someone else did: inbound, a referral, an AE, marketing, self-serve
   --   unknown  nothing says who: HubSpot's meeting objects carry no owner
   CASE
-    WHEN m.stated_sdr IS NOT NULL THEN 'sdr'
-    WHEN m.sdr_name IS NOT NULL THEN 'sdr'
-    WHEN m.stated_campaign_id IS NOT NULL THEN 'sdr'
-    WHEN m.channel ILIKE 'sdr%' THEN 'sdr'
-    WHEN m.source = 'sheet' AND m.direction ILIKE 'outbound' THEN 'sdr'
-    WHEN m.channel IS NOT NULL THEN 'other'
+    WHEN m.sdr_booked THEN 'sdr'
+    WHEN m.channel IS NOT NULL OR m.form_says_other THEN 'other'
     ELSE 'unknown'
   END AS booking_by,
   -- One definition of what outreach may claim, which every page reads:
@@ -375,44 +416,32 @@ SELECT
   --               flagged beside the campaign, never counted as its meeting
   --   none        neither, so no campaign, SDR or program is named at all
   CASE
-    WHEN COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE) THEN 'sourced'
-    WHEN (NOT COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE)
+    WHEN m.sdr_booked THEN 'sourced'
+    WHEN (NOT m.sdr_booked
              AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN 'influenced'
     ELSE 'none'
   END AS attribution,
   -- Campaign, SDR and program name the sourced meeting only, so a page that filters
   -- or groups by them can never count a meeting outreach did not book.
-  CASE WHEN COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE) THEN COALESCE(oc.id, a.campaign_id) END     AS campaign_id,
-  CASE WHEN COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE) THEN COALESCE(oc.name, a.campaign_name) END AS campaign_name,
-  CASE WHEN COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE) THEN COALESCE(oc.sdr, a.sdr) END            AS campaign_sdr,
-  CASE WHEN COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE) THEN COALESCE(oc.program, a.program) END    AS program,
-  CASE WHEN COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE) THEN COALESCE(oc.theme, a.theme) END        AS theme,
+  CASE WHEN m.sdr_booked THEN COALESCE(oc.id, a.campaign_id) END     AS campaign_id,
+  CASE WHEN m.sdr_booked THEN COALESCE(oc.name, a.campaign_name) END AS campaign_name,
+  CASE WHEN m.sdr_booked THEN COALESCE(oc.sdr, a.sdr) END            AS campaign_sdr,
+  CASE WHEN m.sdr_booked THEN COALESCE(oc.program, a.program) END    AS program,
+  CASE WHEN m.sdr_booked THEN COALESCE(oc.theme, a.theme) END        AS theme,
   -- An SDR's own statement outranks the source's guess at who booked it.
-  COALESCE(m.stated_sdr, m.sdr_name,
+  CASE WHEN m.form_says_other AND m.stated_sdr IS NULL THEN NULL ELSE COALESCE(m.stated_sdr, m.form_sdr, m.sdr_name,
            CASE WHEN m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-                THEN COALESCE(oc.sdr, a.sdr) END)                 AS attributed_sdr,
+                THEN COALESCE(oc.sdr, a.sdr) END) END             AS attributed_sdr,
   -- The outreach a flagged meeting followed, for its badge and the review list.
-  CASE WHEN (NOT COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE)
+  CASE WHEN (NOT m.sdr_booked
              AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_campaign_id END   AS influenced_campaign_id,
-  CASE WHEN (NOT COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE)
+  CASE WHEN (NOT m.sdr_booked
              AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_campaign_name END AS influenced_campaign_name,
-  CASE WHEN (NOT COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE)
+  CASE WHEN (NOT m.sdr_booked
              AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_sdr END           AS influenced_sdr,
-  CASE WHEN (NOT COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE)
+  CASE WHEN (NOT m.sdr_booked
              AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_program END       AS influenced_program,
-  CASE WHEN (NOT COALESCE(m.stated_sdr IS NOT NULL OR m.sdr_name IS NOT NULL OR m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
-             OR (m.source = 'sheet' AND m.direction ILIKE 'outbound'), FALSE)
+  CASE WHEN (NOT m.sdr_booked
              AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN (m.meeting_date - a.last_touch) END AS influenced_days,
   -- m.* already carries outcome, evidence_source and evidence_note, written by the
   -- meetings-evidence job (011) from a waterfall of evidence.

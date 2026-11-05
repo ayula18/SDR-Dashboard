@@ -72,9 +72,9 @@ test('positive needs a yes or a not now, never just a reply that is not a no', (
   const leads = views.slice(views.indexOf('CREATE VIEW dash_v_leads'), views.indexOf('CREATE VIEW dash_v_meetings'));
   assert.match(leads, /interest_status IN \(1, 2, 3, 4\)/, 'an SDR marking a lead Interested or a meeting in Instantly counts');
   // Outside the SDRs' campaigns, where the positive response sheet decides instead.
-  assert.match(leads, /ELSE \(base\.reply_count > 0 AND NOT base\.auto_only AND NOT base\.negative_signal AND base\.positive_signal\)/);
+  assert.match(leads, /base\.reply_count > 0 AND NOT base\.auto_only\s+AND \(base\.said_yes OR \(base\.positive_signal AND NOT base\.negative_signal\)\)\) AS labelled_positive/);
   const linkedin = views.slice(views.indexOf('CREATE VIEW dash_v_linkedin_leads'));
-  assert.match(linkedin, /ELSE \(base\.replied AND NOT base\.any_negative AND base\.any_positive\)/);
+  assert.match(linkedin, /\(base\.replied AND base\.any_positive\) AS labelled_positive/);
 });
 
 test('company stage: a reply with no clear yes or no is replied; said no only when everyone who replied said no', () => {
@@ -145,7 +145,7 @@ test('company display: a name that is really a domain is not shown as a name', (
 
 test('views: our own domains and the canonical map are applied where nothing can skip them', () => {
   // Internal rows leave at the view, not at a query site, so a new page cannot forget.
-  assert.match(views, /FROM base\s*\n(?:--[^\n]*\n)*WHERE NOT base\.internal;/);
+  assert.match(views, /FROM base\s*\nCROSS JOIN LATERAL \([^;]*?\) label\n(?:--[^\n]*\n)*WHERE NOT base\.internal;/);
   assert.match(views, /WHERE NOT m\.internal/);
   // Every company key is the canonical domain. The email and meetings sides fold
   // it in live; the LinkedIn side reads it from the column the sync job stamped.

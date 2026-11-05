@@ -18,15 +18,16 @@ import { DEFS } from './definitions';
 
 const METRICS = [
   ['sent', 'First emails sent'],
-  ['replies', 'Replies'],
-  ['positive', 'Positive replies'],
-  ['negative', 'Negative replies'],
+  ['allReplies', 'Replies'],
+  ['allPositive', 'Positive replies'],
+  ['allNegative', 'Negative replies'],
   ['meetings', 'Meetings'],
   ['qualified', 'Qualified'],
   ['leadsLoaded', 'Leads loaded'],
   ['accountsLoaded', 'Accounts loaded'],
   ['linkedinMessagesSent', 'LinkedIn first messages'],
   ['linkedinReplies', 'LinkedIn replies'],
+  ['linkedinPositive', 'LinkedIn positive'],
 ];
 
 export default function TrendsView() {
@@ -46,15 +47,15 @@ export default function TrendsView() {
   const hasLinkedin = rows.some(r => r.linkedinMessagesSent || r.linkedinInvitesSent);
   const compared = [
     ['sent', 'First emails sent'],
-    ['replies', 'Replies'],
-    ['positive', 'Positive replies'],
+    ['allReplies', 'Replies'],
+    ['allPositive', 'Positive replies'],
     ['meetings', 'Meetings'],
     ...(hasLinkedin ? [['linkedinMessagesSent', 'LinkedIn first messages']] : []),
   ];
 
   const series = {
     volume: [{ key: 'sent', label: 'First emails sent', color: SERIES[0] }],
-    replies: [{ key: 'replies', label: 'Replies', color: SERIES[0] }, { key: 'positive', label: 'Positive replies', color: SERIES[1] }],
+    replies: [{ key: 'allReplies', label: 'Replies', color: SERIES[0] }, { key: 'allPositive', label: 'Positive replies', color: SERIES[1] }],
     meetings: [{ key: 'meetings', label: 'Meetings', color: SERIES[0] }],
     linkedin: [{ key: 'linkedinMessagesSent', label: 'First messages', color: SERIES[0] }, { key: 'linkedinReplies', label: 'Replies', color: SERIES[1] }],
   };
@@ -62,7 +63,7 @@ export default function TrendsView() {
   const columns = [
     { key: 'period', label: xLabel, sort: r => r.period, csv: r => r.period, render: r => <span className="nowrap">{tip(r)}</span> },
     ...METRICS.map(([key, label]) => ({ key, label, align: 'right', csv: r => r[key], render: r => fmtInt(r[key]) })),
-    { key: 'positiveRate', label: 'Positive rate', align: 'right', csv: r => r.positiveRate, render: r => fmtPct(r.positiveRate) },
+    { key: 'positiveRate', label: 'Positive rate', hint: DEFS.positiveRate, align: 'right', csv: r => r.positiveRate, render: r => fmtPct(r.positiveRate) },
   ];
 
   return (

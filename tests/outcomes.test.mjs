@@ -5,7 +5,7 @@ import { totalsFromMeetings } from '../lib/metrics/meetings.js';
 import { verdictRow } from '../lib/sync/verdicts.js';
 
 // The keyword rules decide negative and automatic. A reply is positive only when its label is in
-// POSITIVE_VERDICTS (interested, not now); see tests/linkedin.test.mjs and the views.
+// POSITIVE_VERDICTS (interested); see tests/linkedin.test.mjs and the views.
 const judge = (body, extra = {}) => {
   const row = verdictRow({ id: 'test', platform: 'email', body, ...extra });
   return { verdict: row[8], negative: row[9], auto: row[10] };

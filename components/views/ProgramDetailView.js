@@ -13,6 +13,7 @@ import PageHeader from '../ui/PageHeader';
 import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import ConversationPanel from './ConversationPanel';
 import { PositiveResponses, ReplyFeed, SyncStatus, campaignColumns, meetingColumns, useProgramName } from './common';
+import { DEFS } from './definitions';
 import {
   ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramLead, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
@@ -134,7 +135,9 @@ export default function ProgramDetailView({ slug }) {
             <DataTable columns={bySdrColumns({ channel: view, teamColor, withFilters })} rows={data.bySdr} rowKey={r => r.sdr} dense exportName={`${slug}-by-sdr`} />
           </Card>
 
-          <Card className="flush" title="Positive responses" subtitle="SDR responses come from the positive response sheet, matched to their reply where we have it. AI SDR and other campaigns come from our reply labels.">
+          <Card className="flush" title="Positive responses" subtitle={program.positivesFromLabels
+              ? `${program.name} responses come from our reply labels for now, until they are on the positive response sheet. Anything already logged on the sheet is included.`
+              : DEFS.positiveList}>
             <PositiveResponses
               rows={data.positives}
               exportName={`${slug}-positive-responses`}

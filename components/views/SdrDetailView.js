@@ -13,6 +13,7 @@ import PageHeader from '../ui/PageHeader';
 import { Avatar } from '../ui/Person';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import { campaignColumns, KpiTiles, meetingColumns, PositiveResponses, SyncStatus, TrendCards, useProgramName } from './common';
+import { DEFS } from './definitions';
 
 export default function SdrDetailView({ name }) {
   const { apiParams } = useFilters();
@@ -62,7 +63,7 @@ export default function SdrDetailView({ name }) {
             </div>
           </Card>
 
-          <Card title="Which email gets the reply" subtitle="Positive replies by the sequence step people answered.">
+          <Card title="Which email gets the reply" subtitle="Positive email replies by the sequence step people answered, where we know the step.">
             <HBarList
               rows={works.steps.filter(s => s.replied > 0 || s.sent > 0)}
               label={r => `Step ${r.step}`}
@@ -72,7 +73,7 @@ export default function SdrDetailView({ name }) {
             />
           </Card>
 
-          <Card className="flush" title="Positive responses" subtitle="From the positive response sheet, matched to the reply where we have it.">
+          <Card className="flush" title="Positive responses" subtitle={DEFS.positiveListSdr}>
             <PositiveResponses rows={data.positives} withSdr={false} exportName={`${name}-positive-responses`} />
           </Card>
 

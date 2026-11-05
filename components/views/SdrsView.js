@@ -31,11 +31,12 @@ export default function SdrsView() {
     { key: 'activeCampaigns', label: 'Campaigns', align: 'right', csv: r => r.activeCampaigns, render: r => fmtInt(r.activeCampaigns) },
     { key: 'accountsLoaded', label: 'Accounts loaded', align: 'right', csv: r => r.accountsLoaded, render: r => fmtInt(r.accountsLoaded) },
     { key: 'leadsContacted', label: 'Leads contacted', align: 'right', csv: r => r.leadsContacted, render: r => withDelta(r.leadsContacted, r.change.leadsContacted) },
-    { key: 'replies', label: 'Replies', align: 'right', csv: r => r.replies, render: r => withDelta(r.replies, r.change.replies) },
-    { key: 'positive', label: 'Positive', hint: DEFS.positiveSdr, align: 'right', csv: r => r.positive, render: r => withDelta(r.positive, r.change.positive) },
+    { key: 'replies', label: 'Replies', hint: DEFS.repliedBoth, align: 'right', csv: r => r.replies, render: r => withDelta(r.replies, r.change.replies) },
+    { key: 'positive', label: 'Positive', hint: DEFS.positiveSdr, align: 'right', csv: r => r.positive, render: r => <span className="cell-stack">{withDelta(r.positive, r.change.positive)}<span className="cell-sub nowrap">{fmtInt(r.emailPositive)} email, {fmtInt(r.linkedinPositive)} LinkedIn</span></span> },
     {
       key: 'positiveRate',
       label: 'Positive rate',
+      hint: DEFS.positiveRate,
       align: 'right',
       sort: r => (r.lowSample ? -1 : r.positiveRate),
       csv: r => r.positiveRate,
@@ -65,13 +66,13 @@ export default function SdrsView() {
       {data && (
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="grid-2">
-            <Card title="Positive rate" subtitle="Positive replies from the positive response sheet, per lead contacted in this range.">
+            <Card title="Positive rate" subtitle={`Positive email replies per lead contacted in this range. ${DEFS.positiveSource}.`}>
               <HBarList
                 rows={byRate}
                 label="name"
                 value="positiveRate"
                 format={v => fmtPct(v)}
-                detail={r => `${fmtInt(r.positive)} of ${fmtInt(r.leadsContacted)}`}
+                detail={r => `${fmtInt(r.emailPositive)} of ${fmtInt(r.leadsContacted)}`}
                 href={r => withFilters(sdrHref(r.name))}
                 emphasis
                 limit={12}

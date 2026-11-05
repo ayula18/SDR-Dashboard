@@ -76,8 +76,8 @@ test('outcomes: each counted once, on the day it landed', () => {
   for (const col of ['first_reply_at', 'negative_at']) {
     assert.equal((views.match(new RegExp(`COALESCE\\([^)]*\\) AS ${col}\\b`, 'g')) || []).length, 2, `${col} must be defined once per channel`);
   }
-  // An SDR campaign's positive lands on the day the sheet logs it; any other on the labelled reply.
-  assert.equal((views.match(/CASE WHEN c\.positives_from_sheet THEN sheet\.first_at\s+ELSE COALESCE\([^)]*\) END AS positive_at\b/g) || []).length, 2);
+  // A positive on the sheet lands on the day the sheet logs it; any other on the labelled reply.
+  assert.equal((views.match(/CASE WHEN c\.positives_from_sheet OR sheet\.lead_id IS NOT NULL THEN sheet\.first_at\s+ELSE COALESCE\([^)]*\) END AS positive_at\b/g) || []).length, 2);
   assert.match(code('lib/metrics/core.js'), /FROM \$\{emailOutcomeEvents\(/);
   assert.match(code('lib/metrics/linkedin.js'), /FROM \$\{linkedinOutcomeEvents\(/);
 });

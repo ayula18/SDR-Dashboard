@@ -14,6 +14,7 @@ import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import ConversationPanel from './ConversationPanel';
 import { PositiveResponses, ReplyFeed, SyncStatus, useProgramName } from './common';
+import { DEFS } from './definitions';
 import { MeetingsPanel, OverviewLead, OverviewTiles, programColumns } from './overview';
 import {
   ChannelCard, ChannelToggle, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
@@ -136,7 +137,7 @@ export default function OverviewView() {
             </Card>
           </div>
 
-          <Card className="flush" title="Positive responses" subtitle="SDR responses come from the positive response sheet, matched to their reply where we have it. AI SDR and other campaigns come from our reply labels.">
+          <Card className="flush" title="Positive responses" subtitle={DEFS.positiveList}>
             <PositiveResponses
               rows={data.positives}
               onOpen={r => openCompany({ key: r.companyKey, company: r.company, domain: r.domain })}
