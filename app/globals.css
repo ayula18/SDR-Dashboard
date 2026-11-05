@@ -1492,7 +1492,7 @@ code { font-size: 12px; background: var(--bg-elevated); padding: 1px 5px; border
 /* Program page */
 .program-lead { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.5; max-width: 80ch; }
 .program-lead-rest { font-weight: 450; color: var(--text-secondary); }
-.stepper { list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.stepper { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .stepper-step { position: relative; min-width: 0; display: flex; }
 .stepper-step + .stepper-step::before { content: ''; position: absolute; left: -10px; top: 50%; width: 10px; height: 1px; background: var(--border-strong); }
 .stepper-body { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; text-align: left; padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-elevated); color: inherit; font: inherit; }

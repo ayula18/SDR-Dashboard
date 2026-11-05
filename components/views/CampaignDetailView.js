@@ -280,7 +280,7 @@ export default function CampaignDetailView({ id }) {
             <StatTile compact label="Bounced" value={fmtInt(stats.bounced)} note={`${fmtPct(share(stats.bounced, stats.sent))} of all emails, follow-ups included`} upIsGood={false} />
             <StatTile compact label="Replied" value={fmtInt(life.replied)} note={`${fmtPct(share(life.replied, life.leadsContacted))} of contacted`} />
             <StatTile compact label="Positive replies" value={fmtInt(life.positive)} note={`${fmtInt(life.negative)} said no`} />
-            <StatTile compact label="Meetings" value={fmtInt(life.meetings)} note={`${fmtInt(life.qualified)} qualified`} />
+            <StatTile compact label="Meetings" value={fmtInt(life.meetings)} />
           </div>
 
           <div className="grid-2">

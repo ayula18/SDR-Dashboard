@@ -17,13 +17,13 @@ test('program range: since-start runs from the first campaign\'s week to today, 
   assert.equal(resolveRange('since-start', null, null, MON_14_SEP).preset, 'last-4-weeks');
 });
 
-test('company funnel: counts companies overall and per channel, with pipeline', () => {
+test('company funnel: counts companies overall and per channel', () => {
   const s = summarizeCompanies([
-    { channels: 'both', domain: 'a.io', email: { replied: 1, positive: 0 }, linkedin: { replied: 1, positive: 1 }, replied: 2, positive: 1, meetings: 1, meetingsHeld: 1, qualified: 1, pipeline: 5000 },
-    { channels: 'email', domain: 'b.io', email: { replied: 0, positive: 0 }, linkedin: null, replied: 0, positive: 0, meetings: 0, pipeline: 0 },
-    { channels: 'linkedin', domain: 'c.io', email: null, linkedin: { replied: 1, positive: 0 }, replied: 1, positive: 0, meetings: 0, pipeline: 0 },
+    { channels: 'both', domain: 'a.io', email: { replied: 1, positive: 0 }, linkedin: { replied: 1, positive: 1 }, replied: 2, positive: 1, meetings: 1, meetingsHeld: 1 },
+    { channels: 'email', domain: 'b.io', email: { replied: 0, positive: 0 }, linkedin: null, replied: 0, positive: 0, meetings: 0 },
+    { channels: 'linkedin', domain: 'c.io', email: null, linkedin: { replied: 1, positive: 0 }, replied: 1, positive: 0, meetings: 0 },
   ], { people: 4, employers: 3 });
-  assert.deepEqual([s.total, s.replied, s.positive, s.withMeeting, s.pipeline], [3, 2, 1, 1, 5000]);
+  assert.deepEqual([s.total, s.replied, s.positive, s.withMeeting], [3, 2, 1, 1]);
   // LinkedIn people at an employer with no domain are not companies; they travel beside the funnel.
   assert.deepEqual(s.unresolved, { people: 4, employers: 3 });
   assert.deepEqual(s.email, { touched: 2, replied: 1, positive: 0 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useTeamColor } from '@/lib/client/dashboard-context';
-import { fmtInt, fmtMoney, fmtPeriod } from '@/lib/client/format';
+import { fmtInt, fmtPeriod } from '@/lib/client/format';
 import { useApi } from '@/lib/client/use-api';
 import { useFilters, useLinkWithFilters } from '@/lib/client/use-filters';
 import BarChart from '../charts/BarChart';
@@ -45,7 +45,7 @@ export default function MeetingsView() {
       <PageHeader
         title="Meetings"
         description={'Every meeting SDR outreach booked, by meeting date, with the SDR and campaign it\'s credited to. AE, inbound, referral and marketing meetings are left out. '
-          + 'Bookings come from the audit sheet, the booking bot\'s Slack alert and, where neither has it, HubSpot.'}
+          + 'Bookings come from the audit sheet up to September, the booking bot\'s Slack alert, the SDR form on HubSpot deals and, where none of those has it, HubSpot\'s meetings.'}
         meta={<SyncStatus />}
       />
       <FilterBar range={data?.range}>
@@ -61,13 +61,6 @@ export default function MeetingsView() {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="tiles">
             <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
-            <StatTile label="Qualified" value={fmtInt(totals.qualified)} change={totals.change.qualified} />
-            <StatTile
-              label="Qualified pipeline"
-              value={fmtMoney(totals.pipelineValue)}
-              change={totals.change.pipelineValue}
-              note={totals.avgDealValue ? `${fmtMoney(totals.avgDealValue)} average deal` : undefined}
-            />
             <StatTile label="Rescheduled" value={fmtInt(totals.rescheduled)} note={totals.upcoming ? `${fmtInt(totals.upcoming)} still ahead` : 'Moved to a later slot'} />
           </div>
 

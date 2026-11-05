@@ -37,7 +37,7 @@ you in here.
 | Replies and their text | The AI SDR app's Instantly and HeyReach syncs, archived in `ctx_events` | `reply-verdicts` (reads the archive) |
 | Reply labels | GPT-4.1 mini on Azure reads each reply's own words from `ctx_events` (keyword rules until then) | `reply-classify` |
 | Meetings as they are booked, and whether they happened | The booking bot's Slack alert, archived in `ctx_events` (Fireflies and HubSpot meetings confirm it happened) | `meetings-slack` (reads the archive) |
-| Qualified and deal value on those meetings | "Qualified Meetings 2026 - Happened Audit" CSV | `meetings-csv` / admin import |
+| Meetings up to September 2026, with audit verdicts | "Qualified Meetings 2026 - Happened Audit" CSV | admin import, by hand |
 
 **Who pulls what.** Each kind of data is pulled by one app, and both apps can read everything.
 
@@ -103,7 +103,7 @@ and what came of it?
 - **Both, Email or LinkedIn.** The toggle filters every number, table and chart, and stays in the link.
 - **Funnel.** Every step counts companies, so each one is a subset of the step above it: the unique
   companies touched (split into email only, LinkedIn only and both, so the parts add up), how many replied,
-  were positive and took a meeting, and the qualified pipeline from those meetings. Touched means an
+  were positive and took a meeting. Touched means an
   email lead loaded before the range ended and last emailed after it began, or a LinkedIn person
   added before it ended whom HeyReach last invited or messaged after it began. A company's replies
   and meetings count whenever they came after its first touch, so each company step is part of the
@@ -146,7 +146,7 @@ and what came of it?
   reply, replied (no clear yes or no), connected on LinkedIn, contacted, said no (everyone who
   replied said no), not contacted.
 - **Meetings**: every booking the Slack alert announces, read daily from the AI SDR archive, plus
-  the qualified-meetings audit sheet, which alone carries qualified and deal value. When both
+  the audit sheet's export, a snapshot from 10 Sep 2026. When both
   describe the same company within three days the sheet's row is kept, so nothing counts twice.
   **Held** = the sheet audited it "Yes", or a Fireflies or HubSpot meeting at that company sits
   within a day of the booked slot. Outreach views count outbound meetings plus any meeting
@@ -217,5 +217,5 @@ Admin only:
   several companies). They show by name until an admin maps them in Data health.
 - The people in paused and finished HeyReach campaigns keep the status they had when last read;
   invites accepted after a campaign stops only show in the campaign totals from `heyreach`.
-- Meetings are imported from a CSV exported on 10 Sep 2026. The live Google Sheet stops at August too and has no audited column, so qualified and deal value are empty after that; the data warnings say so.
+- Meetings up to September 2026 come from a CSV exported on 10 Sep 2026 and imported by hand; newer ones come from Slack, the SDR form and HubSpot, on their own. The audit sheet's qualified and deal value are stored but not shown.
 # SDR-Dashboard

@@ -22,7 +22,6 @@ const METRICS = [
   ['allPositive', 'Positive replies'],
   ['allNegative', 'Negative replies'],
   ['meetings', 'Meetings'],
-  ['qualified', 'Qualified'],
   ['leadsLoaded', 'Leads loaded'],
   ['accountsLoaded', 'Accounts loaded'],
   ['linkedinMessagesSent', 'LinkedIn first messages'],

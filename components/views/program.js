@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
-import { fmtDate, fmtDateRange, fmtInt, fmtMoney, fmtPct, fmtPeriod, VERDICTS } from '@/lib/client/format';
+import { fmtDate, fmtDateRange, fmtInt, fmtPct, fmtPeriod, VERDICTS } from '@/lib/client/format';
 import ChartTable from '../charts/ChartTable';
 import LineChart from '../charts/LineChart';
 import Badge from '../ui/Badge';
@@ -61,7 +61,7 @@ export function ProgramLead({ name, range, summary, channel, companies }) {
       : ', none positive yet.'}`
     : 'No replies yet.';
   const meetings = summary.withMeeting
-    ? ` ${plural(summary.withMeeting, 'company', 'companies')} took a meeting${summary.pipeline ? `, ${fmtMoney(summary.pipeline)} qualified pipeline` : ''}.`
+    ? ` ${plural(summary.withMeeting, 'company', 'companies')} took a meeting.`
     : ' No meetings yet.';
 
   return (
@@ -83,7 +83,7 @@ export function unresolvedNote(summary) {
 }
 
 /**
- * Unique companies → replied → positive → meeting → pipeline. Every step counts
+ * Unique companies → replied → positive → meeting. Every step counts
  * companies, so each one is a subset of the step above it and the percentages
  * mean what they look like. A step whose list the page holds opens it;
  * `openLists` names those, for a page that only lists some of the companies
@@ -109,10 +109,6 @@ export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, o
       key: 'meeting', label: 'Meeting', value: summary.withMeeting, count: summary.withMeeting, list: 'meeting', converts: true,
       note: summary.meetings ? plural(summary.meetings, 'meeting') : null,
     },
-    {
-      key: 'pipeline', label: 'Qualified pipeline', value: summary.pipeline, money: true,
-      note: summary.qualified ? plural(summary.qualified, 'qualified meeting') : 'From qualified meetings',
-    },
   ];
 
   return (
@@ -133,7 +129,7 @@ export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, o
                 {step.label}
                 {clickable && <ChevronRight aria-hidden="true" />}
               </span>
-              <span className="stepper-value">{step.money ? fmtMoney(step.value) : fmtInt(step.value)}</span>
+              <span className="stepper-value">{fmtInt(step.value)}</span>
               {conversion != null && (
                 <span className="stepper-conv">{fmtPct(conversion, conversion > 0 && conversion < 10 ? 1 : 0)} of {steps[i - 1].label.toLowerCase()}</span>
               )}

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { Clock } from 'lucide-react';
 import { useDashboard } from '@/lib/client/dashboard-context';
-import { fmtCompact, fmtDate, fmtInt, fmtMoney, fmtPct, fmtPeriod, fmtRelative, VERDICTS } from '@/lib/client/format';
+import { fmtCompact, fmtDate, fmtInt, fmtPct, fmtPeriod, fmtRelative, VERDICTS } from '@/lib/client/format';
 import ChartTable from '../charts/ChartTable';
 import LineChart from '../charts/LineChart';
 import Badge from '../ui/Badge';
@@ -435,8 +435,6 @@ export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
       csv: r => MEETING_STATUS[r.outcome] || '',
       render: r => (MEETING_STATUS[r.outcome] ? <Badge tone="neutral">{MEETING_STATUS[r.outcome]}</Badge> : <span className="muted">–</span>),
     },
-    { key: 'qualified', label: 'Qualified', sort: r => (r.qualified ? 1 : 0), csv: r => (r.qualified ? 'Yes' : 'No'), render: r => (r.qualified ? 'Yes' : 'No') },
-    { key: 'dealValue', label: 'Deal value', align: 'right', sort: r => r.dealValue, csv: r => r.dealValue, render: r => fmtMoney(r.dealValue) },
     { key: 'segment', label: 'Segment', sort: r => r.segment, csv: r => r.segment, render: r => r.segment || '–' },
   ].filter(Boolean);
 }

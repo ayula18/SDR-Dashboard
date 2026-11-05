@@ -62,7 +62,7 @@ test('the meetings view has one definition of who booked it, with the form befor
 test('the job is registered, and runs after what it matches and before what reads it', () => {
   assert.ok(JOBS['meetings-sdr-form']);
   const at = job => DEFAULT_SEQUENCE.indexOf(job);
-  assert.ok(at('meetings-sdr-form') > at('meetings-csv'));
+  assert.ok(at('meetings-sdr-form') > at('meetings-slack'));
   assert.ok(at('meetings-sdr-form') > at('meetings-slack'));
   assert.ok(at('meetings-sdr-form') < at('meetings-hubspot'));
   assert.ok(at('meetings-sdr-form') < at('positive-sheet'));

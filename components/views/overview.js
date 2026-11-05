@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { fmtDateRange, fmtInt, fmtMoney, fmtPct, fmtPeriod } from '@/lib/client/format';
+import { fmtDateRange, fmtInt, fmtPct, fmtPeriod } from '@/lib/client/format';
 import BarChart from '../charts/BarChart';
 import ChartTable from '../charts/ChartTable';
 import HBarList from '../charts/HBarList';
@@ -120,13 +120,6 @@ export function MeetingsPanel({ meetings, grain, channel, withFilters, programNa
 
       <div className="tiles">
         <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
-        <StatTile label="Qualified" value={fmtInt(totals.qualified)} change={totals.change.qualified} note={`${fmtPct(totals.qualifiedRate)} of meetings`} />
-        <StatTile
-          label="Qualified pipeline"
-          value={fmtMoney(totals.pipelineValue)}
-          change={totals.change.pipelineValue}
-          note={totals.avgDealValue ? `${fmtMoney(totals.avgDealValue)} average deal` : undefined}
-        />
         <StatTile label="Rescheduled" value={fmtInt(totals.rescheduled)} note={totals.upcoming ? `${fmtInt(totals.upcoming)} still ahead` : 'Moved to a later slot'} />
       </div>
 
