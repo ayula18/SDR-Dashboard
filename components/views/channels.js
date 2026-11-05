@@ -6,6 +6,7 @@ import LineChart from '../charts/LineChart';
 import Badge from '../ui/Badge';
 import Card from '../ui/Card';
 import { SERIES } from './common';
+import { DEFS } from './definitions';
 
 export const CHANNELS = {
   both: { label: 'Both', tone: 'accent' },
@@ -105,7 +106,7 @@ export function companyColumns() {
       align: 'right',
       sort: r => r.meetings,
       csv: r => r.meetings,
-      render: r => (r.meetings ? stack(fmtInt(r.meetings), `${fmtInt(r.meetingsHeld)} held`) : '0'),
+      render: r => fmtInt(r.meetings),
     },
     {
       key: 'lastTouchAt',
@@ -136,18 +137,17 @@ export function ChannelTrendCards({ rows, grain, email = true, linkedin = true }
   ].filter(Boolean).map((s, i) => ({ ...s, color: SERIES[i] }));
 
   const cards = [
-    email && chart(`Email per ${unit}`, 'New leads contacted and emails sent, from Instantly analytics.', [
-      { key: 'leadsContacted', label: 'Leads contacted', color: SERIES[0] },
-      { key: 'sent', label: 'Emails sent', color: SERIES[1] },
+    email && chart(`Email per ${unit}`, 'First emails, from Instantly analytics. Follow-ups are not counted.', [
+      { key: 'sent', label: 'First emails', color: SERIES[0] },
     ]),
-    linkedin && chart(`LinkedIn per ${unit}`, 'Invites sent and accepted, and messages sent, from HeyReach.', [
+    linkedin && chart(`LinkedIn per ${unit}`, 'Invites sent and accepted, and the first message to each person, from HeyReach. Follow-ups are not counted.', [
       { key: 'linkedinInvitesSent', label: 'Invites sent', color: SERIES[0] },
       { key: 'linkedinInvitesAccepted', label: 'Invites accepted', color: SERIES[1] },
-      { key: 'linkedinMessagesSent', label: 'Messages sent', color: SERIES[2] },
+      { key: 'linkedinMessagesSent', label: 'First messages', color: SERIES[2] },
     ]),
     chart(
       `Replies per ${unit}`,
-      email ? 'Replies by the date they came in; meetings by the date they were held.' : 'LinkedIn replies by the date they came in, from HeyReach.',
+      email ? `Replies: ${DEFS.replied.toLowerCase()}. Meetings: ${DEFS.meetings.toLowerCase()}.` : `${DEFS.replied}.`,
       replySeries,
     ),
   ].filter(Boolean);

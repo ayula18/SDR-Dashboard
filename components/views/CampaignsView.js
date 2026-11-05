@@ -13,6 +13,7 @@ import StatTile from '../ui/StatTile';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SyncStatus, campaignColumns, campaignResults, periodPhrase, useProgramName } from './common';
+import { DEFS } from './definitions';
 
 const SHOW = [
   ['current', 'Running or active in range'],
@@ -70,16 +71,16 @@ export default function CampaignsView() {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="tiles">
             <StatTile compact label="Campaigns" value={fmtInt(campaigns.length)} note={`${fmtInt(totals.email)} email, ${fmtInt(totals.linkedin)} LinkedIn, ${fmtInt(totals.running)} running`} />
-            <StatTile compact label="Emails sent" value={fmtInt(totals.emailsSent)} note={periodPhrase(data.range)} />
-            <StatTile compact label="LinkedIn invites" value={fmtInt(totals.invitesSent)} note={`${fmtInt(totals.messagesSent)} messages ${periodPhrase(data.range)}`} />
+            <StatTile compact label="First emails sent" value={fmtInt(totals.emailsSent)} note={`${periodPhrase(data.range)}; follow-ups not counted`} />
+            <StatTile compact label="LinkedIn invites" value={fmtInt(totals.invitesSent)} note={`${fmtInt(totals.messagesSent)} first messages ${periodPhrase(data.range)}`} />
             <StatTile compact label="People who replied" value={fmtInt(totals.replied)} note="Whole campaigns, both channels" />
-            <StatTile compact label="Positive replies" value={fmtInt(totals.positive)} note="Whole campaigns, both channels" />
+            <StatTile compact label="Positive replies" value={fmtInt(totals.positive)} note={`Whole campaigns. ${DEFS.positive}`} />
           </div>
 
           <Card
             className="flush"
             title="Campaigns"
-            subtitle="Companies, people, replies and meetings cover each whole campaign. Reached is leads contacted for email and people invited or messaged for LinkedIn. Sent in range is what went out in the selected dates."
+            subtitle="Companies, people, replies and meetings cover each whole campaign. Reached is leads contacted for email and people invited or messaged for LinkedIn. Sent in range is first emails, or invites and first messages, in the selected dates."
             footnote={totals.unattributed ? `${fmtInt(totals.unattributed)} of these campaigns have no SDR in their name. Assign them from Data health.` : undefined}
           >
             <DataTable

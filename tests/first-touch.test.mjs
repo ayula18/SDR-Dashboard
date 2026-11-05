@@ -5,6 +5,7 @@ import { upsertRows } from '../lib/db.js';
 import { LI_IS_COMPANY, LI_UNRESOLVED } from '../lib/metrics/linkedin.js';
 import { summarizeCompanies } from '../lib/metrics/companies.js';
 import { JOBS, DEFAULT_SEQUENCE } from '../lib/sync/jobs.js';
+import { OUTCOME_AT } from '../lib/metrics/sql.js';
 
 // Ayush, 2026-11-02: a company is reached by its first email or invite, never by a
 // follow-up. Counting by the LAST contact ran weekly counts 18-36% low.
@@ -64,4 +65,45 @@ test('linkedin: the funnel summary carries the unresolved people beside it', () 
   assert.deepEqual(none.unresolved, { people: 0, employers: 0 });
   assert.equal(none.withoutDomain, undefined);
   assert.deepEqual(summarizeCompanies([], { people: 3, employers: 2 }).unresolved, { people: 3, employers: 2 });
+});
+
+// Ayush, 2026-11-04: an open view. A reply, positive or "said no" counts once, on
+// the day it landed, whenever the person was reached; outreach volumes count the
+// first touch only (first email; invite and first LinkedIn message).
+test('outcomes: each counted once, on the day it landed', () => {
+  assert.equal(OUTCOME_AT, 'l.outcome_at');
+  const views = code('db/migrations/900_dash_views.sql');
+  for (const col of ['first_reply_at', 'negative_at']) {
+    assert.equal((views.match(new RegExp(`COALESCE\\([^)]*\\) AS ${col}\\b`, 'g')) || []).length, 2, `${col} must be defined once per channel`);
+  }
+  // An SDR campaign's positive lands on the day the sheet logs it; any other on the labelled reply.
+  assert.equal((views.match(/CASE WHEN c\.positives_from_sheet THEN sheet\.first_at\s+ELSE COALESCE\([^)]*\) END AS positive_at\b/g) || []).length, 2);
+  assert.match(code('lib/metrics/core.js'), /FROM \$\{emailOutcomeEvents\(/);
+  assert.match(code('lib/metrics/linkedin.js'), /FROM \$\{linkedinOutcomeEvents\(/);
+});
+
+test('outcomes: no metrics query counts replies by the last reply again', () => {
+  for (const f of readdirSync(new URL('../lib/metrics/', import.meta.url))) {
+    const src = code(`lib/metrics/${f}`);
+    // t.last_reply_at in core.js is the HeyReach archive fallback, which has no person to date by.
+    assert.ok(!/(^|[^.\w])(l\.)?last_reply_at\s*>=/m.test(src), `${f} dates replies by the last one; use the outcome events`);
+    assert.ok(!/COALESCE\(l\.last_reply_at, l\.last_action_at\)\s*>=/.test(src), `${f} dates LinkedIn replies by the last action; use the outcome events`);
+  }
+});
+
+test('volumes: emails sent are first emails, LinkedIn messages are first messages', () => {
+  const core = code('lib/metrics/core.js');
+  assert.match(core, /SUM\(a\.new_leads_contacted\), 0\)::int AS sent,/);
+  assert.ok(!/SUM\(a\.messages_sent\)/.test(core), 'HeyReach messages_sent counts follow-ups');
+  assert.ok(!/SUM\(messages_sent\)/.test(code('lib/metrics/campaigns.js')), 'HeyReach messages_sent counts follow-ups');
+  assert.ok(JOBS['linkedin-first-message']);
+  assert.ok(DEFAULT_SEQUENCE.indexOf('linkedin-first-message') > DEFAULT_SEQUENCE.indexOf('heyreach-leads'));
+});
+
+test('outcomes: each person once per outcome, chosen before the range is applied', () => {
+  for (const [file, key] of [['lib/metrics/core.js', 'lower\\(l0\\.email\\)'], ['lib/metrics/linkedin.js', 'l0\\.linkedin_id']]) {
+    const src = code(file);
+    assert.match(src, new RegExp(`DISTINCT ON \\(${key}, e\\.kind\\)`), `${file}: a person in two campaigns would count in two periods`);
+    assert.match(src, /\) once\s+WHERE once\.outcome_at >=/, `${file}: the range must apply after the earliest outcome is chosen`);
+  }
 });

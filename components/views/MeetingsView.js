@@ -1,7 +1,7 @@
 'use client';
 
 import { useTeamColor } from '@/lib/client/dashboard-context';
-import { fmtInt, fmtMoney, fmtPct, fmtPeriod } from '@/lib/client/format';
+import { fmtInt, fmtMoney, fmtPeriod } from '@/lib/client/format';
 import { useApi } from '@/lib/client/use-api';
 import { useFilters, useLinkWithFilters } from '@/lib/client/use-filters';
 import BarChart from '../charts/BarChart';
@@ -21,7 +21,7 @@ const SIZE_ORDER = ['1-10', '11-25', '26-50', '51-100', '101-200', '201-500', '5
 function MeetingBars({ title, subtitle, rows, label, href }) {
   return (
     <Card title={title} subtitle={subtitle}>
-      <HBarList rows={rows} label={label} value="meetings" detail={r => `${fmtPct(r.heldRate, 0)} held`} href={href} emptyText="No meetings in this range." />
+      <HBarList rows={rows} label={label} value="meetings" href={href} emptyText="No meetings in this range." />
     </Card>
   );
 }
@@ -36,10 +36,7 @@ export default function MeetingsView() {
   const grain = data?.range?.grain || 'week';
   const totals = data?.totals;
   const channels = data?.channels || (channel ? [channel] : []);
-  const series = [
-    { key: 'meetings', label: 'Meetings', color: SERIES[0] },
-    { key: 'held', label: 'Held', color: SERIES[1] },
-  ];
+  const series = [{ key: 'meetings', label: 'Meetings', color: SERIES[0] }];
   const x = r => fmtPeriod(grain, r.period);
   const tip = r => fmtPeriod(grain, r.period, { long: true });
 
@@ -47,9 +44,8 @@ export default function MeetingsView() {
     <div className="page">
       <PageHeader
         title="Meetings"
-        description={'Every meeting booked, by the date it was held, inbound, referral and ads included, with the SDR and campaign it\'s credited to. '
-          + 'Bookings come from the audit sheet, the booking bot\'s Slack alert and, where neither has it, HubSpot. Held means someone from the company '
-          + 'turned up \u2014 the sheet says so, a recording puts them in the room, or the pipeline moved afterwards \u2014 and every meeting shows which.'}
+        description={'Every meeting SDR outreach booked, by meeting date, with the SDR and campaign it\'s credited to. AE, inbound, referral and marketing meetings are left out. '
+          + 'Bookings come from the audit sheet, the booking bot\'s Slack alert and, where neither has it, HubSpot.'}
         meta={<SyncStatus />}
       />
       <FilterBar range={data?.range}>
@@ -65,7 +61,6 @@ export default function MeetingsView() {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="tiles">
             <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
-            <StatTile label="Held" value={fmtInt(totals.held)} change={totals.change.held} note={`${fmtPct(totals.heldRate)} of the ones we can judge`} />
             <StatTile label="Qualified" value={fmtInt(totals.qualified)} change={totals.change.qualified} />
             <StatTile
               label="Qualified pipeline"
@@ -73,7 +68,6 @@ export default function MeetingsView() {
               change={totals.change.pipelineValue}
               note={totals.avgDealValue ? `${fmtMoney(totals.avgDealValue)} average deal` : undefined}
             />
-            <StatTile label="No show?" value={fmtInt(totals.pendingReview)} note={`${fmtInt(totals.noShow)} confirmed no-shows`} upIsGood={false} />
             <StatTile label="Rescheduled" value={fmtInt(totals.rescheduled)} note={totals.upcoming ? `${fmtInt(totals.upcoming)} still ahead` : 'Moved to a later slot'} />
           </div>
 
@@ -104,9 +98,9 @@ export default function MeetingsView() {
             <MeetingBars title="Open source" rows={data.byOssType} label="key" />
           </div>
 
-          <MeetingEntry meetings={data.meetings} onSaved={reload} />
+          <MeetingEntry meetings={data.meetings} unclaimed={data.unclaimed} onSaved={reload} />
 
-          <Card className="flush" title="All meetings" subtitle="Most recent first.">
+          <Card className="flush" title="SDR-booked meetings" subtitle="Most recent first.">
             <DataTable
               columns={meetingColumns({ teamColor, withFilters })}
               rows={data.meetings}

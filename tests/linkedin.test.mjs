@@ -71,9 +71,10 @@ test('positive needs a yes or a not now, never just a reply that is not a no', (
 
   const leads = views.slice(views.indexOf('CREATE VIEW dash_v_leads'), views.indexOf('CREATE VIEW dash_v_meetings'));
   assert.match(leads, /interest_status IN \(1, 2, 3, 4\)/, 'an SDR marking a lead Interested or a meeting in Instantly counts');
-  assert.match(leads, /AND base\.positive_signal\)\s+AS positive/);
+  // Outside the SDRs' campaigns, where the positive response sheet decides instead.
+  assert.match(leads, /ELSE \(base\.reply_count > 0 AND NOT base\.auto_only AND NOT base\.negative_signal AND base\.positive_signal\)/);
   const linkedin = views.slice(views.indexOf('CREATE VIEW dash_v_linkedin_leads'));
-  assert.match(linkedin, /AND base\.any_positive\)\s+AS positive/);
+  assert.match(linkedin, /ELSE \(base\.replied AND NOT base\.any_negative AND base\.any_positive\)/);
 });
 
 test('company stage: a reply with no clear yes or no is replied; said no only when everyone who replied said no', () => {

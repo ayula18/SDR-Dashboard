@@ -11,8 +11,8 @@ import Drawer from '../ui/Drawer';
 import { Person } from '../ui/Person';
 import { CHANNELS, STAGES, VerdictBadge, replySort } from './channels';
 import { SERIES, sdrHref } from './common';
+import { DEFS } from './definitions';
 
-const POSITIVE = ['interested', 'deferred'];
 const none = () => <span className="muted">–</span>;
 const stack = (value, sub) => <span className="cell-stack">{value}{sub && <span className="cell-sub">{sub}</span>}</span>;
 const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
@@ -107,11 +107,7 @@ export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, o
     { key: 'positive', label: 'Positive', value: summary.positive, count: summary.positive, note: split('positive'), list: 'positive', converts: true },
     {
       key: 'meeting', label: 'Meeting', value: summary.withMeeting, count: summary.withMeeting, list: 'meeting', converts: true,
-      note: [
-        summary.meetings ? `${plural(summary.meetings, 'meeting')}, ${fmtInt(summary.held)} held` : null,
-        // Flagged, never counted: a meeting that arrived another way within 30 days of outreach.
-        summary.influenced ? `${plural(summary.influenced, 'other meeting')} came in another way after outreach` : null,
-      ].filter(Boolean).join(' · ') || null,
+      note: summary.meetings ? plural(summary.meetings, 'meeting') : null,
     },
     {
       key: 'pipeline', label: 'Qualified pipeline', value: summary.pipeline, money: true,
@@ -159,36 +155,36 @@ export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, o
   );
 }
 
-/** One channel's activity in the range, in the same shape for email and LinkedIn. */
+/**
+ * One channel's four numbers for the range (Ayush, 2026-11-05): what went out,
+ * who it reached, the positive replies that came in, and the meetings SDRs
+ * booked from that channel's campaigns.
+ */
 export function ChannelCard({ channel, numbers, change }) {
   if (!numbers) return null;
   const email = channel === 'email';
   const stats = email
     ? [
-      { key: 'peopleEmailed', label: 'People emailed' },
-      { key: 'emailsSent', label: 'Emails sent' },
-      { key: 'bounced', label: 'Bounced', sub: numbers.bounceRate != null ? `${fmtPct(numbers.bounceRate)} of sent` : null, upIsGood: false },
-      { key: 'replied', label: 'Replied', sub: numbers.replyRate != null ? `${fmtPct(numbers.replyRate)} of people emailed` : null },
-      { key: 'positive', label: 'Positive' },
-      { key: 'negative', label: 'Said no', upIsGood: false },
+      { key: 'emailsSent', label: 'Emails sent', sub: DEFS.emailsSent },
+      { key: 'peopleEmailed', label: 'People emailed', sub: DEFS.peopleEmailed },
+      { key: 'positive', label: 'Positive responses', sub: DEFS.positive },
+      { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsEmail },
     ]
     : [
-      { key: 'invitesSent', label: 'Invites sent' },
-      { key: 'accepted', label: 'Accepted', sub: numbers.acceptanceRate != null ? `${fmtPct(numbers.acceptanceRate)} of invites` : null },
-      { key: 'messagesSent', label: 'Messages sent' },
-      { key: 'replied', label: 'Replied', sub: 'people' },
-      { key: 'positive', label: 'Positive' },
-      { key: 'negative', label: 'Said no', upIsGood: false },
+      { key: 'invitesSent', label: 'LinkedIn invites sent', sub: DEFS.invites },
+      { key: 'accepted', label: 'LinkedIn invites accepted', sub: DEFS.accepted },
+      { key: 'positive', label: 'Positive responses', sub: DEFS.positive },
+      { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsLinkedin },
     ];
 
   return (
     <Card
       title={email ? 'Email' : 'LinkedIn'}
       subtitle={email
-        ? 'What went out on Instantly in this range, and the replies that came back.'
-        : 'What went out on HeyReach in this range, and the replies that came back.'}
+        ? 'What went out on Instantly in this range, and what came back during it, whenever the person was emailed.'
+        : 'What went out on HeyReach in this range, and what came back during it, whenever the person was invited.'}
     >
-      <div className="mini-stats">
+      <div className="mini-stats mini-stats-2">
         {stats.map(s => (
           <div key={s.key} className="mini-stat">
             <span className="mini-stat-label">{s.label}</span>
@@ -214,9 +210,9 @@ export function ProgramTrend({ rows, grain, channel }) {
   const data = rows.map(r => ({ ...r, positiveShown: (email ? r.positive : 0) + (linkedin ? r.linkedinPositive : 0) }));
 
   const sent = [
-    email && { key: 'sent', label: 'Emails sent', color: SERIES[0] },
+    email && { key: 'sent', label: 'First emails', color: SERIES[0] },
     linkedin && { key: 'linkedinInvitesSent', label: 'Invites sent', color: SERIES[1] },
-    linkedin && { key: 'linkedinMessagesSent', label: 'Messages sent', color: SERIES[2] },
+    linkedin && { key: 'linkedinMessagesSent', label: 'First messages', color: SERIES[2] },
   ].filter(Boolean);
   const replies = [
     email && { key: 'replies', label: 'Email replies', color: SERIES[0] },
@@ -232,8 +228,8 @@ export function ProgramTrend({ rows, grain, channel }) {
 
   return (
     <div className="grid-2">
-      {chart(`Sent per ${unit}`, 'Emails from Instantly; invites and messages from HeyReach.', sent)}
-      {chart(`Replies per ${unit}`, 'People who replied, by the date the reply came in.', replies)}
+      {chart(`Sent per ${unit}`, 'First emails from Instantly; invites and first messages from HeyReach. Follow-ups are not counted.', sent)}
+      {chart(`Replies per ${unit}`, `${DEFS.replied}. ${DEFS.positive}.`, replies)}
     </div>
   );
 }
@@ -262,7 +258,7 @@ export function programCompanyColumns(channel) {
       render: r => (
         <>
           <Badge tone={STAGES[r.stage].tone}>{STAGES[r.stage].label}</Badge>
-          {r.meetings > 0 && <span className="cell-sub">{plural(r.meetings, 'meeting')}, {fmtInt(r.meetingsHeld)} held</span>}
+          {r.meetings > 0 && <span className="cell-sub">{plural(r.meetings, 'meeting')}</span>}
         </>
       ),
     },
@@ -323,26 +319,28 @@ export function bySdrColumns({ channel, teamColor, withFilters, withCompanies = 
         : <Person name={r.sdr} color={teamColor(r.sdr)} href={withFilters(sdrHref(r.sdr))} size={22} />),
     },
     withCompanies && { key: 'companies', label: 'Companies', align: 'right', csv: r => r.companies, render: r => stack(fmtInt(r.companies), `${fmtInt(r.positiveCompanies)} positive`) },
-    email && { key: 'emailsSent', label: 'Emails sent', align: 'right', csv: r => r.emailsSent, render: r => stack(fmtInt(r.emailsSent), `${fmtInt(r.peopleEmailed)} people`) },
-    email && { key: 'emailReplied', label: 'Email replies', align: 'right', csv: r => r.emailReplied, render: r => stack(fmtInt(r.emailReplied), `${fmtInt(r.emailPositive)} positive`) },
-    linkedin && { key: 'invitesSent', label: 'Invites sent', align: 'right', csv: r => r.invitesSent, render: r => stack(fmtInt(r.invitesSent), `${fmtInt(r.invitesAccepted)} accepted`) },
-    linkedin && { key: 'messagesSent', label: 'Messages sent', align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
-    linkedin && { key: 'linkedinReplied', label: 'LinkedIn replies', align: 'right', csv: r => r.linkedinReplied, render: r => stack(fmtInt(r.linkedinReplied), `${fmtInt(r.linkedinPositive)} positive`) },
-    withMeetings && { key: 'meetings', label: 'Meetings', align: 'right', csv: r => r.meetings, render: r => stack(fmtInt(r.meetings), `${fmtInt(r.meetingsHeld)} held`) },
+    email && { key: 'emailsSent', label: 'First emails', hint: DEFS.firstEmails, align: 'right', csv: r => r.emailsSent, render: r => fmtInt(r.emailsSent) },
+    email && { key: 'emailReplied', label: 'Email replies', hint: DEFS.replied, align: 'right', csv: r => r.emailReplied, render: r => stack(fmtInt(r.emailReplied), `${fmtInt(r.emailPositive)} positive`) },
+    linkedin && { key: 'invitesSent', label: 'Invites sent', hint: DEFS.invites, align: 'right', csv: r => r.invitesSent, render: r => stack(fmtInt(r.invitesSent), `${fmtInt(r.invitesAccepted)} accepted`) },
+    linkedin && { key: 'messagesSent', label: 'First messages', hint: DEFS.firstMessages, align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
+    linkedin && { key: 'linkedinReplied', label: 'LinkedIn replies', hint: DEFS.replied, align: 'right', csv: r => r.linkedinReplied, render: r => stack(fmtInt(r.linkedinReplied), `${fmtInt(r.linkedinPositive)} positive`) },
+    withMeetings && { key: 'meetings', label: 'Meetings', hint: DEFS.meetings, align: 'right', csv: r => r.meetings, render: r => fmtInt(r.meetings) },
   ].filter(Boolean);
 }
 
 const LISTS = {
   companies: { title: 'Unique companies touched', test: () => true, quote: () => true },
   replied: { title: 'Companies that replied', test: c => c.replied > 0, quote: () => true },
-  positive: { title: 'Companies with a positive reply', test: c => c.positive > 0, quote: r => POSITIVE.includes(r.verdict) },
+  positive: { title: 'Companies with a positive reply', test: c => c.positive > 0, quote: () => true },
   meeting: { title: 'Companies with a meeting', test: c => c.meetings > 0, quote: () => true },
 };
 
 /** The companies behind a funnel step, each opening its conversation. */
-export function CompanyListPanel({ list, companies, replies, onClose, onOpen }) {
+export function CompanyListPanel({ list, companies, replies, positives = [], onClose, onOpen }) {
   const config = LISTS[list];
   const rows = config ? companies.filter(config.test) : [];
+  // A positive shows the reply matched to it, which may be a reply no label calls positive.
+  const said = list === 'positive' ? positives : replies;
 
   return (
     <Drawer
@@ -353,7 +351,7 @@ export function CompanyListPanel({ list, companies, replies, onClose, onOpen }) 
     >
       <ul className="company-list">
         {rows.map(c => {
-          const reply = replies.find(r => r.companyKey === c.key && config.quote(r));
+          const reply = said.find(r => r.companyKey === c.key && config.quote(r));
           return (
             <li key={c.key}>
               <button type="button" className="company-list-item" onClick={() => onOpen(c)}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowLeft, ExternalLink, Mail, MessageSquare } from 'lucide-react';
-import { fmtDateTime, fmtInt, VERDICTS } from '@/lib/client/format';
+import { fmtDate, fmtDateTime, fmtInt, VERDICTS } from '@/lib/client/format';
 import { useApi } from '@/lib/client/use-api';
 import Badge from '../ui/Badge';
 import Drawer from '../ui/Drawer';
@@ -133,6 +133,17 @@ export default function ConversationPanel({ target, program, channel = 'both', o
     >
       {error && <ErrorState error={error} onRetry={reload} title="This conversation could not be loaded" />}
       {!current && !error && <LoadingBlock label="Loading the conversation" height={200} />}
+      {current?.sheetRows?.length > 0 && (
+        <ul className="sheet-rows">
+          <li className="sheet-rows-title">On the positive response sheet</li>
+          {current.sheetRows.map(row => (
+            <li key={row.key}>
+              <strong>{row.name}</strong>, {[fmtDate(row.at, { year: true }), row.channel === 'email' ? 'email' : 'LinkedIn', row.sdr, row.status].filter(Boolean).join(', ')}
+              {row.note && <span className="cell-sub">{row.note}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
       {current && current.people.length === 0 && (
         <EmptyState inline title="Nobody to show">
           This program has no people at this company on this channel.

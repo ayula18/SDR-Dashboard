@@ -14,6 +14,7 @@ import PageHeader from '../ui/PageHeader';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SyncStatus, campaignHref, useProgramName } from './common';
+import { DEFS } from './definitions';
 
 const DEFAULT_RANGE = 'last-3-months';
 const SIZE_ORDER = ['1-10', '11-25', '26-50', '51-100', '101-200', '201-500', '501+', 'Unknown'];
@@ -69,15 +70,14 @@ export default function InsightsView() {
         </div>
       ),
     },
-    { key: 'sent', label: 'Sent', align: 'right', csv: r => r.sent, render: r => fmtInt(r.sent) },
+    { key: 'sent', label: 'Sent', hint: 'Emails sent at this step of the sequence', align: 'right', csv: r => r.sent, render: r => fmtInt(r.sent) },
     { key: 'replies', label: 'Replies', align: 'right', csv: r => r.replies, render: r => fmtInt(r.replies) },
     { key: 'replyRate', label: 'Reply rate', align: 'right', csv: r => r.replyRate, render: r => fmtPct(r.replyRate, 2) },
   ];
 
   const senderColumns = [
     { key: 'sender', label: 'Sender', sort: r => r.sender, csv: r => r.sender },
-    { key: 'messagesSent', label: 'Messages', align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
-    { key: 'conversations', label: 'Conversations', align: 'right', csv: r => r.conversations, render: r => fmtInt(r.conversations) },
+    { key: 'messagesSent', label: 'First messages', hint: DEFS.firstMessages, align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
     { key: 'replies', label: 'Replied', align: 'right', csv: r => r.replies, render: r => fmtInt(r.replies) },
     { key: 'positive', label: 'Positive', align: 'right', csv: r => r.positive, render: r => fmtInt(r.positive) },
   ];
@@ -142,7 +142,7 @@ export default function InsightsView() {
           <Card
             className="flush"
             title="LinkedIn senders"
-            subtitle="HeyReach conversations archived by the AI SDR app. Senders are the people whose LinkedIn accounts send, not the SDRs. Replies count by the date they came in, so some belong to conversations started before this range."
+            subtitle="HeyReach conversations archived by the AI SDR app. Senders are the people whose LinkedIn accounts send, not the SDRs. Messages are the first one to each person; replies count on the day they came in, so some belong to conversations started before this range."
           >
             <DataTable columns={senderColumns} rows={data.linkedinBySender} rowKey={r => r.sender} dense empty="No LinkedIn messages in this range." exportName="linkedin-senders" />
           </Card>

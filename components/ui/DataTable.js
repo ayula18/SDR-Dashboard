@@ -10,7 +10,8 @@ const INTERACTIVE = 'a, button, input, select, textarea, label';
 /**
  * Sortable table with optional search, paging and CSV export.
  *
- * columns: [{ key, label, align?: 'right', render?(row), sort?(row), csv?(row) | false, sortable? }]
+ * columns: [{ key, label, align?: 'right', render?(row), sort?(row), csv?(row) | false, sortable?, hint? }]
+ * `hint` is the column's definition, shown on hovering the header (components/views/definitions.js).
  * `csv` is also what search matches against, so give link and badge columns one.
  * `onRowClick(row)` makes rows open something (Enter or Space from the keyboard);
  * clicks on links and buttons inside a row still do their own thing. `activeKey`
@@ -138,9 +139,9 @@ export default function DataTable({
                     className={c.align === 'right' ? 'num' : undefined}
                     aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                   >
-                    {c.sortable === false ? c.label : (
-                      <button type="button" className="dt-sort" onClick={() => toggleSort(c.key)}>
-                        {c.label}{active && <Icon aria-hidden="true" />}
+                    {c.sortable === false ? <span className={c.hint ? 'dt-hint' : undefined} title={c.hint}>{c.label}</span> : (
+                      <button type="button" className="dt-sort" onClick={() => toggleSort(c.key)} title={c.hint}>
+                        <span className={c.hint ? 'dt-hint' : undefined}>{c.label}</span>{active && <Icon aria-hidden="true" />}
                       </button>
                     )}
                   </th>

@@ -48,15 +48,12 @@ test('best/worst highlighting ignores small samples and ties', () => {
   assert.equal(markExtremes([{ positiveRate: 0 }, { positiveRate: 0 }])[0].best, undefined);
 });
 
-test('meeting totals: sourced and influenced are counted apart', () => {
+test('meeting totals: a booking that moved is counted once, at its later slot', () => {
   const totals = totalsFromMeetings([
-    { attribution: 'sourced', held: true, rescheduled: false },
-    { attribution: 'sourced', held: false, rescheduled: false },
-    { attribution: 'influenced', held: true, rescheduled: false },
-    { attribution: 'none', held: false, rescheduled: false },
-    { attribution: 'sourced', held: true, rescheduled: true },
+    { held: true, rescheduled: false },
+    { held: false, rescheduled: false },
+    { held: true, rescheduled: true },
   ]);
-  assert.equal(totals.meetings, 4, 'a booking that moved is left out');
-  assert.equal(totals.sourced, 2);
-  assert.equal(totals.influenced, 1);
+  assert.equal(totals.meetings, 2, 'a booking that moved is left out');
+  assert.equal(totals.rescheduled, 1);
 });

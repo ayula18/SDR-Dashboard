@@ -13,6 +13,7 @@ import { Person } from '../ui/Person';
 import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { MiniStat, SyncStatus, programHref } from './common';
+import { DEFS } from './definitions';
 
 function ProgramCard({ program: p, since, href, teamColor }) {
   const invites = p.funnel.volume.linkedinInvitesSent > 0;
@@ -30,12 +31,11 @@ function ProgramCard({ program: p, since, href, teamColor }) {
       ) : (
         <>
           <div className="mini-stats">
-            <MiniStat label="Emails sent" value={fmtInt(p.period.emailsSent)} change={p.change.emailsSent} />
-            <MiniStat label="Leads contacted" value={fmtInt(p.period.leadsContacted)} change={p.change.leadsContacted} />
+            <MiniStat label="First emails sent" value={fmtInt(p.period.emailsSent)} change={p.change.emailsSent} sub={DEFS.firstEmails} />
             {invites
               ? <MiniStat label="LinkedIn invites" value={fmtInt(p.period.linkedinInvitesSent)} change={p.change.linkedinInvitesSent} />
               : <MiniStat label="Replies" value={fmtInt(p.period.replies)} change={p.change.replies} />}
-            <MiniStat label="Positive replies" value={fmtInt(p.period.positive)} change={p.change.positive} />
+            <MiniStat label="Positive replies" value={fmtInt(p.period.positive)} change={p.change.positive} sub={DEFS.positive} />
             <MiniStat label="Meetings" value={fmtInt(p.period.meetings)} change={p.change.meetings} />
             <MiniStat label="Campaigns" value={fmtInt(p.campaigns)} sub={`${fmtInt(p.activeCampaigns)} active`} />
           </div>

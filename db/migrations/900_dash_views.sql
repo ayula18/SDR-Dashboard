@@ -9,6 +9,7 @@
 
 -- dash_v_meetings reads dash_v_linkedin_leads, so it drops first.
 DROP VIEW IF EXISTS dash_v_meetings;
+DROP VIEW IF EXISTS dash_v_sheet_positives;
 DROP VIEW IF EXISTS dash_v_linkedin_leads;
 DROP VIEW IF EXISTS dash_v_leads;
 DROP VIEW IF EXISTS dash_v_campaigns;
@@ -54,28 +55,60 @@ SELECT
    OR (c.name ~* '(^|[^a-z])(test+|webhook|deliverability)([^a-z]|$)'
        AND CASE WHEN o.program IS NULL THEN c.parsed_program ELSE NULLIF(o.program, '') END
            IS DISTINCT FROM 'ai-sdr')) AS excluded,
-  (o.campaign_id IS NOT NULL) AS overridden
+  (o.campaign_id IS NOT NULL) AS overridden,
+  -- Whose positives come from the SDRs' positive response sheet (026). Every other
+  -- campaign, AI SDR included, stays on our reply labels (Ayush, 2026-11-05).
+  COALESCE(t.logs_positives, FALSE) AS positives_from_sheet
 FROM dash_campaigns c
-LEFT JOIN dash_campaign_overrides o ON o.campaign_id = c.id;
+LEFT JOIN dash_campaign_overrides o ON o.campaign_id = c.id
+LEFT JOIN dash_team t ON t.name = CASE WHEN o.sdr IS NULL THEN c.parsed_sdr ELSE NULLIF(o.sdr, '') END;
+
+-- The rows of the positive response sheet that count, with what their campaign
+-- says. sdr is who the SHEET credits, which can differ from the campaign's owner.
+-- campaign_id and lead_id are empty when the person could not be tied to a lead in
+-- an SDR campaign: the row still counts for the SDR and the totals.
+CREATE VIEW dash_v_sheet_positives AS
+SELECT
+  s.key, s.channel, s.replied_on, (s.replied_on::timestamp AT TIME ZONE 'UTC') AS replied_at,
+  s.person_name, s.company_name, s.company_domain, s.sdr, s.sender, s.status, s.notes, s.comments, s.match_kind,
+  s.person_email, s.linkedin_id, s.campaign_id, s.lead_id,
+  c.program, c.theme, c.name AS campaign_name, dl.replied_step
+FROM dash_sdr_positives s
+LEFT JOIN dash_v_campaigns c ON c.id = s.campaign_id
+LEFT JOIN dash_leads dl ON s.channel = 'email' AND dl.id = s.lead_id
+LEFT JOIN dash_internal_domains idom ON idom.domain = s.company_domain
+WHERE s.skip_reason IS NULL AND s.replied_on IS NOT NULL AND idom.domain IS NULL;
 
 -- Leads with reply outcomes.
 --
 --   replied   a human replied (reply_count > 0, and not only auto-replies or off-topic messages)
 --   negative  replied, and said no: Not Interested / Lost in Instantly,
 --             unsubscribed, or the reply was labelled declined or unsubscribed
---   positive  replied, not negative, and a clear yes or not now: a reply labelled
---             interested or not now, or the SDR marked the lead Interested, Meeting
---             booked, Meeting completed or Won in Instantly. A reply with no clear
---             intent or from the wrong person is replied, not positive
+--   positive  in an SDR's campaign: logged on the positive response sheet, and nothing
+--             else (Ayush, 2026-11-05). A person on the sheet has replied and has
+--             not said no, whatever the archive holds.
+--             Any other campaign: replied, not negative, and a clear yes or not now:
+--             a reply labelled interested or not now, or the lead marked Interested,
+--             Meeting booked, Meeting completed or Won in Instantly. A reply with no
+--             clear intent or from the wrong person is replied, not positive
 CREATE VIEW dash_v_leads AS
 WITH verdicts AS (
   SELECT campaign_external_id, person_email,
          bool_or(is_positive) AS any_positive,
          bool_or(is_negative) AS any_negative,
-         bool_and(is_auto)    AS only_auto
+         bool_and(is_auto)    AS only_auto,
+         min(replied_at) FILTER (WHERE NOT is_auto) AS first_reply_at,
+         min(replied_at) FILTER (WHERE is_positive) AS first_positive_at,
+         min(replied_at) FILTER (WHERE is_negative) AS first_negative_at
     FROM dash_v_reply_verdicts
    WHERE platform = 'email' AND person_email IS NOT NULL
    GROUP BY 1, 2
+),
+sheet AS (
+  SELECT lead_id, min(replied_at) AS first_at
+    FROM dash_v_sheet_positives
+   WHERE channel = 'email' AND lead_id IS NOT NULL
+   GROUP BY 1
 ),
 base AS (
   SELECT
@@ -92,8 +125,17 @@ base AS (
     -- 2026-11-02). Every range that counts reached leads or companies reads this.
     -- LEAST skips a NULL, so a lead the archive never saw falls back to its last contact.
     LEAST(l.first_contact_at, l.last_contact_at) AS first_contact_at,
+    -- WHEN EACH OUTCOME LANDED, so it is counted once, on that day (Ayush
+    -- 2026-11-04): replied at the first human reply, positive and negative at the
+    -- first reply labelled so. Instantly's lead holds only its LAST reply, so the
+    -- archive decides; until a reply is archived that last reply stands in.
+    COALESCE(v.first_reply_at, l.last_reply_at, sheet.first_at) AS first_reply_at,
+    CASE WHEN c.positives_from_sheet THEN sheet.first_at
+         ELSE COALESCE(v.first_positive_at, v.first_reply_at, l.last_reply_at) END AS positive_at,
+    COALESCE(v.first_negative_at, v.first_reply_at, l.last_reply_at) AS negative_at,
     (idom.domain IS NOT NULL) AS internal,
     c.sdr, c.program, c.theme, c.segment, c.region, c.excluded, c.name AS campaign_name,
+    c.positives_from_sheet, (sheet.lead_id IS NOT NULL) AS on_sheet,
     (COALESCE(l.interest_status = 0, FALSE) OR COALESCE(v.only_auto, FALSE)) AS auto_only,
     (COALESCE(l.interest_status IN (-1, -3), FALSE)
        OR COALESCE(l.status = -2, FALSE)
@@ -105,13 +147,16 @@ base AS (
   LEFT JOIN dash_company_domains cd ON cd.domain = l.company_domain
   LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cd.canonical_domain, l.company_domain)
   LEFT JOIN verdicts v ON v.campaign_external_id = c.external_id AND v.person_email = l.email
+  LEFT JOIN sheet ON sheet.lead_id = l.id
 )
 SELECT
   base.*,
   (base.last_contact_at IS NOT NULL)                                                                  AS contacted,
-  (base.reply_count > 0 AND NOT base.auto_only)                                                       AS replied,
-  (base.reply_count > 0 AND NOT base.auto_only AND base.negative_signal)                              AS negative,
-  (base.reply_count > 0 AND NOT base.auto_only AND NOT base.negative_signal AND base.positive_signal)  AS positive
+  (base.on_sheet OR (base.reply_count > 0 AND NOT base.auto_only))                                    AS replied,
+  (NOT base.on_sheet AND base.reply_count > 0 AND NOT base.auto_only AND base.negative_signal)        AS negative,
+  CASE WHEN base.positives_from_sheet THEN base.on_sheet
+       ELSE (base.reply_count > 0 AND NOT base.auto_only AND NOT base.negative_signal AND base.positive_signal)
+  END                                                                                                 AS positive
 FROM base
 -- Our own seeded addresses are not prospects. Dropped here rather than in each
 -- query, because a page that forgot would quietly report reo.dev as a company.
@@ -130,7 +175,11 @@ WHERE NOT base.internal;
 --              decide, so auto-replies and off-topic messages don't count;
 --              until then HeyReach's own replied status does
 --   negative   replied, and a reply was labelled declined or unsubscribed
---   positive   replied, not negative, and a reply was labelled interested or not now
+--   positive   in an SDR's campaign: logged on the positive response sheet, and
+--              nothing else (Ayush, 2026-11-05). A person on the sheet has replied
+--              and has not said no, whatever the archive holds.
+--              Any other campaign: replied, not negative, and a reply was labelled
+--              interested or not now
 --
 -- Each labelled reply belongs to the latest campaign that added its writer before
 -- it came in, so someone in two campaigns is not counted as replying twice.
@@ -155,8 +204,17 @@ outcome AS (
            (array_agg(verdict ORDER BY array_position(ARRAY['interested', 'deferred', 'not_the_person', 'unknown', 'declined', 'unsubscribed'], verdict))
               FILTER (WHERE NOT is_auto))[1]
          ) AS best_verdict,
-         max(replied_at) FILTER (WHERE NOT is_auto) AS last_reply_at
+         max(replied_at) FILTER (WHERE NOT is_auto) AS last_reply_at,
+         min(replied_at) FILTER (WHERE NOT is_auto) AS first_reply_at,
+         min(replied_at) FILTER (WHERE is_positive) AS first_positive_at,
+         min(replied_at) FILTER (WHERE is_negative) AS first_negative_at
     FROM attributed
+   GROUP BY 1, 2
+),
+sheet AS (
+  SELECT campaign_id, lead_id, min(replied_at) AS first_at
+    FROM dash_v_sheet_positives
+   WHERE channel = 'linkedin' AND lead_id IS NOT NULL
    GROUP BY 1, 2
 ),
 resolved AS (
@@ -184,13 +242,24 @@ resolved AS (
          THEN l.last_action_at ELSE l.added_at END AS first_touch_at,
     c.sdr, c.program, c.theme, c.excluded, c.name AS campaign_name, c.status AS campaign_state,
     o.best_verdict, o.last_reply_at,
-    CASE WHEN o.lead_id IS NULL THEN COALESCE(l.message_status = 'MessageReply', FALSE) ELSE NOT o.only_auto END AS replied,
+    -- When each outcome landed, as for email. A reply HeyReach reports but the
+    -- archive has not caught up with is dated by HeyReach's latest action.
+    COALESCE(o.first_reply_at, sheet.first_at, l.last_action_at) AS first_reply_at,
+    CASE WHEN c.positives_from_sheet THEN sheet.first_at
+         ELSE COALESCE(o.first_positive_at, o.first_reply_at, l.last_action_at) END AS positive_at,
+    COALESCE(o.first_negative_at, o.first_reply_at, l.last_action_at) AS negative_at,
+    -- The first message to this person in this campaign (025), follow-ups not counted.
+    l.first_message_at,
+    (sheet.lead_id IS NOT NULL
+      OR CASE WHEN o.lead_id IS NULL THEN COALESCE(l.message_status = 'MessageReply', FALSE) ELSE NOT o.only_auto END) AS replied,
     COALESCE(o.any_positive, FALSE) AS any_positive,
-    COALESCE(o.any_negative, FALSE) AS any_negative
+    COALESCE(o.any_negative, FALSE) AS any_negative,
+    c.positives_from_sheet, (sheet.lead_id IS NOT NULL) AS on_sheet
   FROM dash_linkedin_leads l
   JOIN dash_v_campaigns c ON c.id = l.campaign_id
   LEFT JOIN dash_company_aliases a ON a.company_key = l.company_key
   LEFT JOIN outcome o ON o.campaign_id = l.campaign_id AND o.lead_id = l.lead_id
+  LEFT JOIN sheet ON sheet.campaign_id = l.campaign_id AND sheet.lead_id = l.lead_id
 ),
 -- The admin alias decides which domain a person's employer is; this folds that
 -- domain onto its company's canonical one, so LinkedIn and email land on the same
@@ -231,7 +300,9 @@ base AS (
     r.connection_status, r.message_status, r.error_code, r.added_at, r.last_action_at,
     r.first_touch_at, r.company_url, r.identity_source,
     r.sdr, r.program, r.theme, r.excluded, r.campaign_name, r.campaign_state,
-    r.best_verdict, r.last_reply_at, r.replied, r.any_positive, r.any_negative
+    r.best_verdict, r.last_reply_at, r.replied, r.any_positive, r.any_negative,
+    r.first_reply_at, r.positive_at, r.negative_at, r.first_message_at,
+    r.positives_from_sheet, r.on_sheet
   FROM resolved r
   -- Seven rows; the three closure joins that used to sit here are now a stored
   -- column, which is what makes company_domain indexable (019).
@@ -244,8 +315,9 @@ SELECT
   COALESCE(base.message_status IN ('MessageSent', 'MessageReply'), FALSE)            AS messaged,
   COALESCE(base.connection_status IN ('ConnectionSent', 'ConnectionAccepted')
         OR base.message_status IN ('MessageSent', 'MessageReply'), FALSE)            AS reached,
-  (base.replied AND base.any_negative)                                               AS negative,
-  (base.replied AND NOT base.any_negative AND base.any_positive)                     AS positive
+  (base.replied AND base.any_negative AND NOT base.on_sheet)                         AS negative,
+  CASE WHEN base.positives_from_sheet THEN base.on_sheet
+       ELSE (base.replied AND NOT base.any_negative AND base.any_positive) END       AS positive
 FROM base
 WHERE NOT base.internal;
 

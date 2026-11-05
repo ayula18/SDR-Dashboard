@@ -13,15 +13,11 @@ import PageHeader from '../ui/PageHeader';
 import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import ConversationPanel from './ConversationPanel';
-import { ReplyFeed, SyncStatus, useProgramName } from './common';
+import { PositiveResponses, ReplyFeed, SyncStatus, useProgramName } from './common';
 import { MeetingsPanel, OverviewLead, OverviewTiles, programColumns } from './overview';
 import {
-  ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
+  ChannelCard, ChannelToggle, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
-
-// The overview lists the companies that replied or took a meeting, not every
-// company touched, so only those funnel steps open a list.
-const OPEN_LISTS = ['replied', 'positive', 'meeting'];
 
 /**
  * Everything the team sent and everything that came back, for a range and a
@@ -39,11 +35,9 @@ export default function OverviewView() {
 
   const [panel, setPanel] = useState(null);
   const closePanel = useCallback(() => setPanel(null), []);
-  const openList = useCallback(list => setPanel({ type: 'list', list }), []);
-  const openCompany = useCallback((company, fromList = null) => setPanel({
+  const openCompany = useCallback(company => setPanel({
     type: 'company',
     target: { key: company.key, name: company.company, domain: company.domain },
-    fromList,
   }), []);
 
   const grain = data?.range?.grain || 'week';
@@ -77,15 +71,6 @@ export default function OverviewView() {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <OverviewLead summary={summary} tiles={data.tiles} range={data.range} channel={view} companies={data.companies} />
           <OverviewTiles tiles={data.tiles} channel={view} />
-
-          <CompanyFunnel
-            summary={summary}
-            channel={view}
-            range={data.range}
-            onOpenList={openList}
-            openLists={OPEN_LISTS}
-            subtitle="The companies reached in this range, and how far each has got since. The last two steps count meetings at those companies, whenever they happened; the Meetings section counts what was held in this range."
-          />
 
           {view === 'both' ? (
             <div className="grid-2">
@@ -151,7 +136,14 @@ export default function OverviewView() {
             </Card>
           </div>
 
-          <Card title="Latest replies" subtitle="What people wrote back in this range. Open one to read the whole conversation.">
+          <Card className="flush" title="Positive responses" subtitle="SDR responses come from the positive response sheet, matched to their reply where we have it. AI SDR and other campaigns come from our reply labels.">
+            <PositiveResponses
+              rows={data.positives}
+              onOpen={r => openCompany({ key: r.companyKey, company: r.company, domain: r.domain })}
+            />
+          </Card>
+
+          <Card title="Latest replies" subtitle="What people wrote back in this range, as our labels read it. Open one to read the whole conversation.">
             <ReplyFeed
               replies={data.replies.slice(0, 10)}
               onOpen={r => openCompany({ key: r.companyKey, company: r.domain || r.name, domain: r.domain })}
@@ -164,17 +156,7 @@ export default function OverviewView() {
         target={panel?.type === 'company' ? panel.target : null}
         channel={view}
         onClose={closePanel}
-        onBack={panel?.type === 'company' && panel.fromList ? () => openList(panel.fromList) : null}
       />
-      {data && (
-        <CompanyListPanel
-          list={panel?.type === 'list' ? panel.list : null}
-          companies={data.companies}
-          replies={data.replies}
-          onClose={closePanel}
-          onOpen={company => openCompany(company, panel?.list)}
-        />
-      )}
     </div>
   );
 }

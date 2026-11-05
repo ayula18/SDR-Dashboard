@@ -1448,6 +1448,9 @@ code { font-size: 12px; background: var(--bg-elevated); padding: 1px 5px; border
 .person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 
 /* Reply feed */
+.positive-said { display: block; min-width: 260px; max-width: 520px; white-space: normal; line-height: 1.45; overflow-wrap: anywhere; }
+.sheet-rows { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0 0 16px; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: 8px; font-size: 13px; }
+.sheet-rows-title { font-size: 12px; color: var(--text-muted); }
 .feed { list-style: none; display: flex; flex-direction: column; }
 .feed li { padding: 10px 0; border-top: 1px solid var(--border-light); display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 4px 14px; font-size: 13px; }
 .feed li:first-child { border-top: none; padding-top: 0; }
@@ -1459,6 +1462,7 @@ code { font-size: 12px; background: var(--bg-elevated); padding: 1px 5px; border
 .program-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
 .program-card { display: flex; flex-direction: column; gap: 16px; }
 .mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.mini-stats-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 16px; }
 .mini-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mini-stat-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-stat-value { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
@@ -1581,3 +1585,6 @@ button.stepper-body:hover { border-color: var(--border-strong); background: var(
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* A column whose header carries a definition (column.hint): shown on hover. */
+.dt-hint { text-decoration: underline dotted var(--text-muted); text-underline-offset: 3px; cursor: help; }

@@ -20,6 +20,7 @@ import { ChannelTrendCards, VerdictBadge, replySort } from './channels';
 import {
   ReplyFeed, SyncStatus, TrendCards, accountColumns, isTestName, meetingColumns, programHref, sdrHref, statusLabel, useProgramName,
 } from './common';
+import { DEFS } from './definitions';
 
 const variantLetter = v => String.fromCharCode(65 + (Number(v) || 0));
 const share = (part, whole) => (whole ? (part / whole) * 100 : null);
@@ -147,7 +148,7 @@ function LinkedinCampaign({ data }) {
         ? stack(fmtInt(r.emailPeople), `in ${fmtInt(r.emailCampaigns)} ${r.emailCampaigns === 1 ? 'campaign' : 'campaigns'}`)
         : <span className="muted">No</span>),
     },
-    { key: 'meetings', label: 'Meetings', align: 'right', csv: r => r.meetings, render: r => (r.meetings ? stack(fmtInt(r.meetings), `${fmtInt(r.meetingsHeld)} held`) : '0') },
+    { key: 'meetings', label: 'Meetings', align: 'right', csv: r => r.meetings, render: r => fmtInt(r.meetings) },
   ];
   const senderCols = [
     { key: 'key', label: 'Sender', sort: r => r.key, csv: r => r.key },
@@ -227,7 +228,7 @@ export default function CampaignDetailView({ id }) {
         </div>
       ),
     },
-    { key: 'sent', label: 'Sent', align: 'right', csv: r => r.sent, render: r => fmtInt(r.sent) },
+    { key: 'sent', label: 'Sent', hint: 'Emails sent at this step of the sequence', align: 'right', csv: r => r.sent, render: r => fmtInt(r.sent) },
     { key: 'replies', label: 'Replies', align: 'right', csv: r => r.replies, render: r => fmtInt(r.replies) },
     { key: 'replyRate', label: 'Reply rate', align: 'right', csv: r => r.replyRate, render: r => fmtPct(r.replyRate, 2) },
   ];
@@ -275,11 +276,11 @@ export default function CampaignDetailView({ id }) {
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="tiles">
             <StatTile compact label="Leads loaded" value={fmtInt(life.leadsLoaded)} note={`${fmtInt(life.accountsLoaded)} accounts`} />
-            <StatTile compact label="Contacted" value={fmtInt(life.leadsContacted)} />
-            <StatTile compact label="Emails sent" value={fmtInt(stats.sent)} note={`${fmtPct(share(stats.bounced, stats.sent))} bounced`} />
+            <StatTile compact label="First emails sent" value={fmtInt(life.leadsContacted)} note={DEFS.firstEmails} />
+            <StatTile compact label="Bounced" value={fmtInt(stats.bounced)} note={`${fmtPct(share(stats.bounced, stats.sent))} of all emails, follow-ups included`} upIsGood={false} />
             <StatTile compact label="Replied" value={fmtInt(life.replied)} note={`${fmtPct(share(life.replied, life.leadsContacted))} of contacted`} />
             <StatTile compact label="Positive replies" value={fmtInt(life.positive)} note={`${fmtInt(life.negative)} said no`} />
-            <StatTile compact label="Meetings" value={fmtInt(life.meetings)} note={`${fmtInt(life.held)} held, ${fmtInt(life.qualified)} qualified`} />
+            <StatTile compact label="Meetings" value={fmtInt(life.meetings)} note={`${fmtInt(life.qualified)} qualified`} />
           </div>
 
           <div className="grid-2">

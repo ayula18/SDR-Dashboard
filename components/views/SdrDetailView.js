@@ -12,9 +12,7 @@ import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import { Avatar } from '../ui/Person';
 import { ErrorState, LoadingBlock } from '../ui/States';
-import {
-  KpiTiles, SyncStatus, TrendCards, campaignColumns, meetingColumns, useProgramName,
-} from './common';
+import { campaignColumns, KpiTiles, meetingColumns, PositiveResponses, SyncStatus, TrendCards, useProgramName } from './common';
 
 export default function SdrDetailView({ name }) {
   const { apiParams } = useFilters();
@@ -72,6 +70,10 @@ export default function SdrDetailView({ name }) {
               detail={r => `${fmtPct(r.stepReplyRate)} reply rate on ${fmtInt(r.sent)} sends`}
               emptyText="No replies with a known step in this range."
             />
+          </Card>
+
+          <Card className="flush" title="Positive responses" subtitle="From the positive response sheet, matched to the reply where we have it.">
+            <PositiveResponses rows={data.positives} withSdr={false} exportName={`${name}-positive-responses`} />
           </Card>
 
           <Card className="flush" title="Campaigns" subtitle="Campaigns with activity in this range.">

@@ -9,10 +9,12 @@ import ChartTable from '../charts/ChartTable';
 import LineChart from '../charts/LineChart';
 import Badge from '../ui/Badge';
 import Card from '../ui/Card';
+import DataTable from '../ui/DataTable';
 import Delta from '../ui/Delta';
 import { Person } from '../ui/Person';
 import StatTile from '../ui/StatTile';
 import { EmptyState } from '../ui/States';
+import { DEFS } from './definitions';
 
 export const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'];
 
@@ -91,24 +93,20 @@ export function KpiTile({ label, kpi, format = fmtCompact, rate = false, upIsGoo
 export function KpiTiles({ kpis }) {
   return (
     <div className="tiles">
-      <KpiTile label="Leads contacted" kpi={kpis.leadsContacted} />
-      <KpiTile label="Emails sent" kpi={kpis.emailsSent} />
-      <KpiTile label="Replies" kpi={kpis.replies} />
-      <KpiTile label="Positive replies" kpi={kpis.positive} />
-      <KpiTile label="Positive rate" kpi={kpis.positiveRate} rate format={v => fmtPct(v)} />
-      <KpiTile label="Meetings" kpi={kpis.meetings} />
-      <KpiTile label="Meetings held" kpi={kpis.meetingsHeld} />
+      <KpiTile label="First emails sent" kpi={kpis.emailsSent} note={DEFS.firstEmails} />
+      <KpiTile label="Replies" kpi={kpis.replies} note={DEFS.replied} />
+      <KpiTile label="Positive replies" kpi={kpis.positive} note={DEFS.positive} />
+      <KpiTile label="Positive rate" kpi={kpis.positiveRate} rate format={v => fmtPct(v)} note={DEFS.positiveRate} />
+      <KpiTile label="Meetings" kpi={kpis.meetings} note={DEFS.meetings} />
     </div>
   );
 }
 
 const MOVERS = [
-  ['leadsContacted', 'leads contacted'],
-  ['emailsSent', 'emails sent'],
+  ['emailsSent', 'first emails sent'],
   ['replies', 'replies'],
   ['positive', 'positive replies'],
   ['meetings', 'meetings'],
-  ['meetingsHeld', 'meetings held'],
 ];
 
 /** The overview's lead: what happened, in a sentence, then the biggest moves. */
@@ -122,7 +120,7 @@ export function WhatChanged({ data, topSdr }) {
       : positive.value < positive.previous
         ? `, down from ${fmtInt(positive.previous)}`
         : ', the same as the period before';
-  const lead = `${fmtInt(positive.value)} positive ${positive.value === 1 ? 'reply' : 'replies'} from ${fmtInt(kpis.leadsContacted.value)} leads contacted ${periodPhrase(range)}${versus}.`;
+  const lead = `${fmtInt(positive.value)} positive ${positive.value === 1 ? 'reply' : 'replies'} came in ${periodPhrase(range)}${versus}, with ${fmtInt(kpis.emailsSent.value)} first emails sent.`;
 
   const movers = MOVERS
     .map(([key, noun]) => ({ key, noun, ...kpis[key] }))
@@ -154,10 +152,7 @@ export function TrendCards({ rows, grain }) {
   const unit = grain === 'month' ? 'month' : 'week';
   const x = row => fmtPeriod(grain, row.period);
   const tip = row => fmtPeriod(grain, row.period, { long: true });
-  const volume = [
-    { key: 'leadsContacted', label: 'Leads contacted', color: SERIES[0] },
-    { key: 'sent', label: 'Emails sent', color: SERIES[1] },
-  ];
+  const volume = [{ key: 'sent', label: 'First emails', color: SERIES[0] }];
   const outcomes = [
     { key: 'replies', label: 'Replies', color: SERIES[0] },
     { key: 'positive', label: 'Positive replies', color: SERIES[1] },
@@ -169,14 +164,14 @@ export function TrendCards({ rows, grain }) {
     <div className="grid-2">
       <Card
         title={`Outreach per ${unit}`}
-        subtitle="New leads contacted and emails sent, from Instantly analytics."
+        subtitle="First emails from Instantly analytics; follow-ups are not counted."
         table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={volume} />}
       >
         <LineChart data={rows} x={x} tooltipLabel={tip} series={volume} label={`Outreach per ${unit}`} />
       </Card>
       <Card
         title={`Replies and meetings per ${unit}`}
-        subtitle="Replies by the date they came in; meetings by the date they were held."
+        subtitle={`Replies: ${DEFS.replied.toLowerCase()}. Meetings: ${DEFS.meetings.toLowerCase()}.`}
         table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={outcomes} />}
       >
         <LineChart data={rows} x={x} tooltipLabel={tip} series={outcomes} label={`Replies and meetings per ${unit}`} />
@@ -190,8 +185,8 @@ export function LinkedinBlock({ linkedin }) {
     return <EmptyState inline title="Not available with these filters">{linkedin?.note}</EmptyState>;
   }
   const stats = linkedin.source === 'heyreach'
-    ? [['Invites sent', linkedin.invitesSent], ['Invites accepted', linkedin.invitesAccepted], ['Messages sent', linkedin.messagesSent], ['Replies', linkedin.replies]]
-    : [['Messages sent', linkedin.messagesSent], ['Replies', linkedin.replies], ['Positive replies', linkedin.positive]];
+    ? [['Invites sent', linkedin.invitesSent], ['Invites accepted', linkedin.invitesAccepted], ['First messages', linkedin.messagesSent], ['Replies', linkedin.replies]]
+    : [['First messages', linkedin.messagesSent], ['Replies', linkedin.replies], ['Positive replies', linkedin.positive]];
 
   return (
     <>
@@ -244,17 +239,12 @@ export function rateCell(rate, lowSample, detail) {
 }
 
 /**
- * What came of a meeting, and what says so. "Held" is only ever a claim something
- * backs: the audit sheet, a recording with the prospect in the room, or the sales
- * pipeline moving afterwards. Everything unproven reads as "No show?", never as
- * held, and a booking that moved is neither.
+ * Whether a booking is still ahead or moved to a later slot. Whether a past
+ * meeting was held is deliberately not shown anywhere (Ayush, 2026-11-03).
  */
-export const OUTCOMES = {
-  held: { label: 'Held', tone: 'good' },
-  no_show: { label: 'No-show', tone: 'bad' },
-  rescheduled: { label: 'Rescheduled', tone: 'neutral' },
-  upcoming: { label: 'Upcoming', tone: 'neutral' },
-  review: { label: 'No show?', tone: 'warn' },
+const MEETING_STATUS = {
+  rescheduled: 'Rescheduled',
+  upcoming: 'Upcoming',
 };
 
 // Which rung of the booking waterfall this meeting came from.
@@ -263,29 +253,6 @@ export const BOOKED_VIA = {
   slack: 'Slack alert',
   hubspot: 'HubSpot',
 };
-
-const EVIDENCE = {
-  audit: 'From the audit sheet',
-  recording: 'From the call recording',
-  pipeline: 'From the sales pipeline',
-  moved: 'Rescheduled',
-  hubspot: 'HubSpot only',
-  schedule: 'Not yet',
-  none: 'No evidence yet',
-};
-
-export function HeldBadge({ outcome, happened, evidenceNote, evidenceSource }) {
-  // A row from before the evidence job ran still carries only the sheet's column.
-  const key = outcome || (String(happened || '').toLowerCase() === 'yes' ? 'held'
-    : String(happened || '').toLowerCase() === 'no' ? 'no_show' : 'review');
-  const o = OUTCOMES[key] || OUTCOMES.review;
-  return (
-    <span className="cell-stack">
-      <Badge tone={o.tone} title={evidenceNote || undefined}>{o.label}</Badge>
-      {evidenceSource && <span className="cell-sub">{EVIDENCE[evidenceSource] || evidenceSource}</span>}
-    </span>
-  );
-}
 
 const ACCOUNT_STATUS = {
   meeting: { label: 'Meeting', tone: 'accent', rank: 6 },
@@ -371,6 +338,7 @@ export function campaignColumns({ teamColor, withFilters, programName, withSdr =
     {
       key: 'sent',
       label: 'Sent in range',
+      hint: 'First emails, or invites and first messages, in the selected dates; follow-ups not counted',
       align: 'right',
       sort: r => campaignResults(r).sentInRange,
       csv: r => campaignResults(r).sentInRange,
@@ -403,7 +371,7 @@ export function campaignResults(r) {
   return {
     people: r.lifetime.leads,
     reached: r.lifetime.contacted,
-    reachedNote: `${fmtInt(r.lifetime.sent)} emails`,
+    reachedNote: `${fmtInt(r.lifetime.sent)} first emails`,
     replied: r.lifetime.replied,
     replyRate: r.lifetime.replyRate,
     positive: r.lifetime.positive,
@@ -438,25 +406,6 @@ export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
       render: r => <>{r.channel || <span className="muted">Not stated</span>}{r.source && r.source !== r.channel && <span className="cell-sub">{r.source}</span>}</>,
     },
     {
-      key: 'attribution',
-      label: 'Credit',
-      sort: r => (r.attribution === 'sourced' ? 2 : r.attribution === 'influenced' ? 1 : 0),
-      csv: r => (r.attribution === 'influenced'
-        ? `Influenced${r.influencedSdr ? ` (${r.influencedSdr})` : ''}${r.influencedDays != null ? `, ${r.influencedDays}d after outreach` : ''}`
-        : r.attribution === 'sourced' ? 'SDR booked' : 'Not from outreach'),
-      render: r => {
-        if (r.attribution === 'sourced') return <Badge tone="good">SDR booked</Badge>;
-        if (r.attribution !== 'influenced') return <span className="muted">–</span>;
-        const after = [r.influencedSdr, r.influencedDays != null ? `${r.influencedDays}d after outreach` : null].filter(Boolean).join(', ');
-        return (
-          <span className="cell-stack">
-            <Badge tone="warn" title={r.influencedCampaign || undefined}>Came in another way</Badge>
-            {after && <span className="cell-sub">{after}</span>}
-          </span>
-        );
-      },
-    },
-    {
       key: 'bookedVia',
       label: 'Booked via',
       sort: r => r.bookedVia,
@@ -480,11 +429,11 @@ export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
         : <span className="muted">No campaign match</span>),
     },
     {
-      key: 'held',
-      label: 'Outcome',
-      sort: r => (r.held ? 1 : 0),
-      csv: r => [OUTCOMES[r.outcome]?.label || r.happened, r.evidenceNote].filter(Boolean).join(' — '),
-      render: r => <HeldBadge outcome={r.outcome} happened={r.happened} evidenceNote={r.evidenceNote} evidenceSource={r.evidenceSource} />,
+      key: 'status',
+      label: 'Status',
+      sort: r => MEETING_STATUS[r.outcome] || '',
+      csv: r => MEETING_STATUS[r.outcome] || '',
+      render: r => (MEETING_STATUS[r.outcome] ? <Badge tone="neutral">{MEETING_STATUS[r.outcome]}</Badge> : <span className="muted">–</span>),
     },
     { key: 'qualified', label: 'Qualified', sort: r => (r.qualified ? 1 : 0), csv: r => (r.qualified ? 'Yes' : 'No'), render: r => (r.qualified ? 'Yes' : 'No') },
     { key: 'dealValue', label: 'Deal value', align: 'right', sort: r => r.dealValue, csv: r => r.dealValue, render: r => fmtMoney(r.dealValue) },
@@ -521,10 +470,50 @@ export function accountColumns() {
       align: 'right',
       sort: r => r.meetings,
       csv: r => r.meetings,
-      render: r => (r.meetings ? <span className="cell-stack">{fmtInt(r.meetings)}<span className="cell-sub">{fmtInt(r.meetingsHeld)} held</span></span> : '0'),
+      render: r => fmtInt(r.meetings),
     },
     { key: 'firstLoadedAt', label: 'First loaded', sort: r => r.firstLoadedAt, csv: r => r.firstLoadedAt, render: r => <span className="nowrap">{fmtDate(r.firstLoadedAt, { year: true })}</span> },
   ];
+}
+
+/**
+ * The positive responses behind a range and what each person said. SDR rows are
+ * from the positive response sheet, which holds no reply text: it is matched from
+ * our conversations, and where we hold no reply the SDR's own note stands in.
+ */
+export function PositiveResponses({ rows = [], onOpen, exportName = 'positive-responses', withSdr = true }) {
+  const columns = [
+    { key: 'at', label: 'Date', sort: r => r.at, csv: r => String(r.at).slice(0, 10), render: r => fmtDate(r.at, { year: true }) },
+    { key: 'name', label: 'Person', sort: r => r.name, csv: r => r.name, render: r => cellStack(r.name || '-', r.company) },
+    withSdr && { key: 'sdr', label: 'SDR', sort: r => r.sdr || '', csv: r => r.sdr || '', render: r => r.sdr || <span className="muted">-</span> },
+    { key: 'channel', label: 'Channel', sort: r => r.channel, csv: r => r.channel, render: r => (r.channel === 'email' ? 'Email' : 'LinkedIn') },
+    {
+      key: 'said',
+      label: 'What they said',
+      csv: r => r.quote || r.note || '',
+      render: r => (r.quote
+        ? <span className="positive-said">“{r.quote}”</span>
+        : <span className="positive-said muted">{r.note ? `SDR note: ${r.note}` : 'Reply not in our conversations'}</span>),
+    },
+    { key: 'status', label: 'Status', sort: r => r.status || '', csv: r => r.status || '', render: r => r.status || <span className="muted">-</span> },
+    { key: 'source', label: 'From', sort: r => r.source, csv: r => r.source, render: r => <span className="muted">{r.source === 'sheet' ? 'Sheet' : 'Reply label'}</span> },
+  ].filter(Boolean);
+  return (
+    <DataTable
+      columns={columns}
+      rows={rows}
+      rowKey={(r, i) => `${r.at}-${r.name}-${i}`}
+      dense
+      pageSize={10}
+      searchable
+      searchPlaceholder="Search people and companies"
+      exportName={exportName}
+      initialSort={{ key: 'at', dir: 'desc' }}
+      empty="No positive responses in this range."
+      onRowClick={onOpen ? r => r.companyKey && onOpen(r) : undefined}
+      rowLabel={r => `Open the conversation with ${r.company || r.name}`}
+    />
+  );
 }
 
 /** Replies with what they said. With `onOpen`, a reply whose company is known opens that company's conversation. */

@@ -14,19 +14,18 @@ import StatTile from '../ui/StatTile';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SERIES, SyncStatus } from './common';
+import { DEFS } from './definitions';
 
 const METRICS = [
-  ['leadsContacted', 'Leads contacted'],
-  ['sent', 'Emails sent'],
+  ['sent', 'First emails sent'],
   ['replies', 'Replies'],
   ['positive', 'Positive replies'],
   ['negative', 'Negative replies'],
   ['meetings', 'Meetings'],
-  ['meetingsHeld', 'Meetings held'],
   ['qualified', 'Qualified'],
   ['leadsLoaded', 'Leads loaded'],
   ['accountsLoaded', 'Accounts loaded'],
-  ['linkedinMessagesSent', 'LinkedIn messages'],
+  ['linkedinMessagesSent', 'LinkedIn first messages'],
   ['linkedinReplies', 'LinkedIn replies'],
 ];
 
@@ -46,20 +45,18 @@ export default function TrendsView() {
   const previous = complete[complete.length - 2];
   const hasLinkedin = rows.some(r => r.linkedinMessagesSent || r.linkedinInvitesSent);
   const compared = [
-    ['leadsContacted', 'Leads contacted'],
-    ['sent', 'Emails sent'],
+    ['sent', 'First emails sent'],
     ['replies', 'Replies'],
     ['positive', 'Positive replies'],
     ['meetings', 'Meetings'],
-    ['meetingsHeld', 'Meetings held'],
-    ...(hasLinkedin ? [['linkedinMessagesSent', 'LinkedIn messages']] : []),
+    ...(hasLinkedin ? [['linkedinMessagesSent', 'LinkedIn first messages']] : []),
   ];
 
   const series = {
-    volume: [{ key: 'leadsContacted', label: 'Leads contacted', color: SERIES[0] }, { key: 'sent', label: 'Emails sent', color: SERIES[1] }],
+    volume: [{ key: 'sent', label: 'First emails sent', color: SERIES[0] }],
     replies: [{ key: 'replies', label: 'Replies', color: SERIES[0] }, { key: 'positive', label: 'Positive replies', color: SERIES[1] }],
-    meetings: [{ key: 'meetings', label: 'Meetings', color: SERIES[0] }, { key: 'meetingsHeld', label: 'Held', color: SERIES[1] }],
-    linkedin: [{ key: 'linkedinMessagesSent', label: 'Messages sent', color: SERIES[0] }, { key: 'linkedinReplies', label: 'Replies', color: SERIES[1] }],
+    meetings: [{ key: 'meetings', label: 'Meetings', color: SERIES[0] }],
+    linkedin: [{ key: 'linkedinMessagesSent', label: 'First messages', color: SERIES[0] }, { key: 'linkedinReplies', label: 'Replies', color: SERIES[1] }],
   };
 
   const columns = [
@@ -110,7 +107,7 @@ export default function TrendsView() {
             <Card title={`Outreach per ${unit}`} subtitle="From Instantly analytics." table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.volume} />}>
               <LineChart data={rows} x={x} tooltipLabel={tip} series={series.volume} label={`Outreach per ${unit}`} />
             </Card>
-            <Card title={`Replies per ${unit}`} subtitle="Human replies, by the date they came in. Out-of-office replies are left out." table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.replies} />}>
+            <Card title={`Replies per ${unit}`} subtitle={`Human replies: ${DEFS.replied.toLowerCase()}. Out-of-office replies are left out.`} table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.replies} />}>
               <LineChart data={rows} x={x} tooltipLabel={tip} series={series.replies} label={`Replies per ${unit}`} />
             </Card>
             <Card title={`Meetings per ${unit}`} subtitle="Outbound meetings by meeting date, from Slack bookings and the audit sheet." table={() => <ChartTable rows={rows} x={tip} xLabel={xLabel} series={series.meetings} />}>

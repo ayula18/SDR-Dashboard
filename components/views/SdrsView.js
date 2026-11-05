@@ -13,6 +13,7 @@ import { Person } from '../ui/Person';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SyncStatus, sdrHref, withDelta } from './common';
+import { DEFS } from './definitions';
 
 export default function SdrsView() {
   const { apiParams } = useFilters();
@@ -31,7 +32,7 @@ export default function SdrsView() {
     { key: 'accountsLoaded', label: 'Accounts loaded', align: 'right', csv: r => r.accountsLoaded, render: r => fmtInt(r.accountsLoaded) },
     { key: 'leadsContacted', label: 'Leads contacted', align: 'right', csv: r => r.leadsContacted, render: r => withDelta(r.leadsContacted, r.change.leadsContacted) },
     { key: 'replies', label: 'Replies', align: 'right', csv: r => r.replies, render: r => withDelta(r.replies, r.change.replies) },
-    { key: 'positive', label: 'Positive', align: 'right', csv: r => r.positive, render: r => withDelta(r.positive, r.change.positive) },
+    { key: 'positive', label: 'Positive', hint: DEFS.positiveSdr, align: 'right', csv: r => r.positive, render: r => withDelta(r.positive, r.change.positive) },
     {
       key: 'positiveRate',
       label: 'Positive rate',
@@ -46,7 +47,6 @@ export default function SdrsView() {
       ),
     },
     { key: 'meetings', label: 'Meetings', align: 'right', csv: r => r.meetings, render: r => withDelta(r.meetings, r.change.meetings) },
-    { key: 'meetingsHeld', label: 'Held', align: 'right', csv: r => r.meetingsHeld, render: r => fmtInt(r.meetingsHeld) },
     { key: 'bounceRate', label: 'Bounce rate', align: 'right', csv: r => r.bounceRate, render: r => fmtPct(r.bounceRate) },
   ];
 
@@ -65,7 +65,7 @@ export default function SdrsView() {
       {data && (
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
           <div className="grid-2">
-            <Card title="Positive rate" subtitle="Positive replies per lead contacted in this range.">
+            <Card title="Positive rate" subtitle="Positive replies from the positive response sheet, per lead contacted in this range.">
               <HBarList
                 rows={byRate}
                 label="name"
@@ -82,7 +82,6 @@ export default function SdrsView() {
                 rows={byMeetings}
                 label="name"
                 value="meetings"
-                detail={r => `${fmtInt(r.meetingsHeld)} held`}
                 href={r => withFilters(sdrHref(r.name))}
                 limit={12}
                 emptyText="No outbound meetings in this range."

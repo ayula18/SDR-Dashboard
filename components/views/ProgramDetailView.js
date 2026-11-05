@@ -12,7 +12,7 @@ import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import ConversationPanel from './ConversationPanel';
-import { ReplyFeed, SyncStatus, campaignColumns, meetingColumns, useProgramName } from './common';
+import { PositiveResponses, ReplyFeed, SyncStatus, campaignColumns, meetingColumns, useProgramName } from './common';
 import {
   ChannelCard, ChannelToggle, CompanyFunnel, CompanyListPanel, ProgramLead, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
 } from './program';
@@ -134,10 +134,18 @@ export default function ProgramDetailView({ slug }) {
             <DataTable columns={bySdrColumns({ channel: view, teamColor, withFilters })} rows={data.bySdr} rowKey={r => r.sdr} dense exportName={`${slug}-by-sdr`} />
           </Card>
 
+          <Card className="flush" title="Positive responses" subtitle="SDR responses come from the positive response sheet, matched to their reply where we have it. AI SDR and other campaigns come from our reply labels.">
+            <PositiveResponses
+              rows={data.positives}
+              exportName={`${slug}-positive-responses`}
+              onOpen={r => openCompany({ key: r.companyKey, company: r.company, domain: r.domain })}
+            />
+          </Card>
+
           <div className="grid-2">
             <Card className="flush" title="Meetings" subtitle="Meetings at these companies after the first touch, from Slack bookings and the audit sheet.">
               <DataTable
-                columns={meetingColumns({ teamColor, withFilters }).filter(c => ['date', 'company', 'attribution', 'sdr', 'held', 'dealValue'].includes(c.key))}
+                columns={meetingColumns({ teamColor, withFilters }).filter(c => ['date', 'company', 'campaign', 'sdr', 'status', 'dealValue'].includes(c.key))}
                 rows={data.meetings}
                 rowKey={r => r.id}
                 dense
@@ -145,7 +153,7 @@ export default function ProgramDetailView({ slug }) {
                 empty="No meetings at these companies yet."
               />
             </Card>
-            <Card title="Latest replies" subtitle="What people wrote back in this range. Open one to read the whole conversation.">
+            <Card title="Latest replies" subtitle="What people wrote back in this range, as our labels read it. Open one to read the whole conversation.">
               <ReplyFeed
                 replies={data.replies.slice(0, 10)}
                 onOpen={r => openCompany({ key: r.companyKey, company: r.domain || r.name, domain: r.domain })}
@@ -167,6 +175,7 @@ export default function ProgramDetailView({ slug }) {
           list={panel?.type === 'list' ? panel.list : null}
           companies={data.companies}
           replies={data.replies}
+          positives={data.positives}
           onClose={closePanel}
           onOpen={company => openCompany(company, panel?.list)}
         />

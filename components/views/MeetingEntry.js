@@ -59,7 +59,7 @@ function CampaignField({ value, onChange, campaigns, onFocus, id }) {
  * — which finds nothing when the outreach was never recorded. The person who
  * booked it knows. Everything saved here keeps who said so.
  */
-export default function MeetingEntry({ meetings = [], onSaved }) {
+export default function MeetingEntry({ meetings = [], unclaimed = [], onSaved }) {
   const { meta } = useDashboard();
   const { campaigns, loadCampaigns } = useCampaigns();
   const [open, setOpen] = useState(false);
@@ -67,10 +67,11 @@ export default function MeetingEntry({ meetings = [], onSaved }) {
   const [state, setState] = useState({ busy: false, saved: null, error: null });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  // Inbound bookings have no campaign by nature; only outbound ones are missing credit.
+  // SDR-booked meetings no recorded outreach explains, then bookings no source
+  // names anyone on: claiming one with a campaign makes it an SDR meeting.
   const unattributed = useMemo(
-    () => meetings.filter(m => !m.campaignId && m.direction !== 'Inbound').slice(0, 25),
-    [meetings]
+    () => [...meetings.filter(m => !m.campaignId && !m.rescheduled), ...unclaimed].slice(0, 25),
+    [meetings, unclaimed]
   );
 
   const submit = async event => {
@@ -130,8 +131,8 @@ export default function MeetingEntry({ meetings = [], onSaved }) {
 
       {unattributed.length > 0 && (
         <Card
-          title="Outbound meetings with no campaign"
-          subtitle="Nothing in the recorded outreach reaches these companies, so nobody is credited. Say which campaign earned them."
+          title="Meetings with no campaign"
+          subtitle="SDR-booked meetings the recorded outreach doesn't explain, and bookings no source names anyone on. The second kind count nowhere until someone says which campaign earned them."
         >
           <ul className="changes-list">
             {unattributed.map(m => (
