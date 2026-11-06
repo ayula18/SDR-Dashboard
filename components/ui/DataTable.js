@@ -15,7 +15,8 @@ const INTERACTIVE = 'a, button, input, select, textarea, label';
  * `csv` is also what search matches against, so give link and badge columns one.
  * `onRowClick(row)` makes rows open something (Enter or Space from the keyboard);
  * clicks on links and buttons inside a row still do their own thing. `activeKey`
- * marks the row whose details are open.
+ * marks the row whose details are open. `footerRow` is a total: it stays under the
+ * rows whichever way they sort, and goes last in the export.
  */
 export default function DataTable({
   columns,
@@ -32,6 +33,7 @@ export default function DataTable({
   onRowClick,
   rowLabel,
   activeKey = null,
+  footerRow = null,
 }) {
   const [sort, setSort] = useState(initialSort);
   const [query, setQuery] = useState('');
@@ -75,7 +77,7 @@ export default function DataTable({
       key: c.key,
       csv: typeof c.csv === 'function' ? c.csv : undefined,
     })),
-    sorted
+    footerRow ? [...sorted, footerRow] : sorted
   );
 
   const rowProps = (row, key) => {
@@ -165,6 +167,17 @@ export default function DataTable({
               );
             })}
           </tbody>
+          {footerRow && (
+            <tfoot>
+              <tr>
+                {columns.map(c => (
+                  <td key={c.key} className={c.align === 'right' ? 'num' : undefined}>
+                    {c.render ? c.render(footerRow) : (footerRow[c.key] ?? '–')}
+                  </td>
+                ))}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

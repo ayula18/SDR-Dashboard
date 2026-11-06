@@ -4,8 +4,8 @@
  * what "emails sent" means). Shown as tile notes, card subtitles and column
  * hints. Change the rule in lib/metrics first, then the words here.
  *
- * The rules behind them: outreach volumes are the first touch only, except the
- * channel cards' "Emails sent", which has the follow-ups too (2026-11-05);
+ * The rules behind them: outreach volumes are the first touch only, except
+ * "Total emails" on the channel cards and the SDR page, which has every step (2026-11-05);
  * replies, positives and meetings are counted once, on the day they happened,
  * whenever the person was reached (an open view, not a cohort). Meetings are
  * only ever the ones SDR outreach booked. SDR positives are what the SDRs logged on
@@ -21,9 +21,9 @@ const SDR_SOURCE = 'From the positive response sheet, plus booked meetings nobod
 
 export const DEFS = {
   companies: 'Actual company count will be lower, as each domain is counted as an account',
-  emailsSent: 'Every email sent, follow-ups included',
+  emailsSent: 'All steps: every first email and every follow-up',
   peopleEmailed: 'Each person once, on the day of their first email',
-  firstEmails: 'First emails only; follow-ups not counted',
+  firstEmails: 'Step 1 only: the first email to each person, no follow-ups',
   invites: 'Connection requests sent',
   accepted: 'On the day they accepted, whenever the invite went out',
   firstMessages: 'First message to each person; follow-ups not counted',
@@ -40,4 +40,13 @@ export const DEFS = {
   positiveRate: 'Email only: positive email replies that came in, per first email sent, in the same dates',
   ratesEmail: 'Out of the people first emailed in these dates. Positives and meetings count on the day they happen, so some come from people emailed earlier.',
   ratesLinkedin: 'Out of the invites sent in these dates. Acceptances, positives and meetings count on the day they happen, so some come from earlier invites.',
+  formulaPositiveEmail: 'Positive responses ÷ people emailed × 100',
+  formulaMeetingEmail: 'Meetings booked ÷ people emailed × 100',
+  formulaAcceptance: 'Invites accepted ÷ invites sent × 100',
+  formulaPositiveLinkedin: 'Positive responses ÷ invites sent × 100',
+  formulaMeetingLinkedin: 'Meetings booked ÷ invites sent × 100',
+  boardEmail: 'What went out on Instantly in these dates, and what came back during them, whenever the person was emailed.',
+  boardLinkedin: 'What went out on HeyReach in these dates, and what came back during them, whenever the person was invited.',
+  compareDates: 'These stay on the latest full periods, whatever dates are picked above.',
+  workingDays: 'Working days only: weekend sends count in weeks and months, not here.',
 };

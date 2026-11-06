@@ -87,6 +87,7 @@ function RosterControls({ member, onSaved }) {
         onChange={e => save({ role: e.target.value })}
       >
         <option value="sdr">SDR</option>
+        <option value="sdr_extra">SDR, shown only when picked</option>
         <option value="other">Not an SDR</option>
       </select>
       <input
@@ -294,7 +295,7 @@ export default function HealthView() {
     { key: 'name', label: 'Name', sort: r => r.name, csv: r => r.name },
     isAdmin
       ? { key: 'role', label: 'Role and other spellings', sortable: false, csv: r => r.role, render: r => <RosterControls member={r} onSaved={refresh} /> }
-      : { key: 'role', label: 'Role', csv: r => r.role, render: r => (r.role === 'sdr' ? 'SDR' : 'Not an SDR') },
+      : { key: 'role', label: 'Role', csv: r => r.role, render: r => ({ sdr: 'SDR', sdr_extra: 'SDR, shown only when picked' }[r.role] || 'Not an SDR') },
     !isAdmin && { key: 'aliases', label: 'Other spellings', sortable: false, csv: r => (r.aliases || []).join('; '), render: r => (r.aliases || []).join(', ') || '–' },
     { key: 'campaignsLast90Days', label: 'Campaigns, last 90 days', align: 'right', csv: r => r.campaignsLast90Days, render: r => fmtInt(r.campaignsLast90Days) },
   ].filter(Boolean);

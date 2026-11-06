@@ -1,8 +1,8 @@
 import { handle } from '@/lib/api';
 import { parseFilters } from '@/lib/metrics/filters';
-import { getLeaderboard } from '@/lib/metrics/sdrs';
+import { getSdrBoard } from '@/lib/metrics/funnel';
 
-/** SDR leaderboard for the range, with previous-period change. */
+/** Each SDR's funnel for exactly the dates picked. */
 export async function GET(request) {
-  return handle(() => getLeaderboard(parseFilters(request.nextUrl.searchParams)));
+  return handle(() => getSdrBoard(parseFilters(request.nextUrl.searchParams)));
 }

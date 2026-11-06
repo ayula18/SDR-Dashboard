@@ -12,6 +12,7 @@ import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import ConversationPanel from './ConversationPanel';
+import { useOutcomes } from './outcomes';
 import { PositiveResponses, ReplyFeed, SyncStatus, campaignColumns, meetingColumns, useProgramName } from './common';
 import { DEFS } from './definitions';
 import {
@@ -37,6 +38,7 @@ export default function ProgramDetailView({ slug }) {
   }, [apiParams, channel]);
   const { data, error, loading, refreshing, reload } = useApi(`/api/metrics/programs/${slug}`, params);
 
+  const { openOutcomes, outcomesPanel } = useOutcomes();
   const [panel, setPanel] = useState(null);
   const closePanel = useCallback(() => setPanel(null), []);
   const openList = useCallback(list => setPanel({ type: 'list', list }), []);
@@ -83,7 +85,20 @@ export default function ProgramDetailView({ slug }) {
 
           <CompanyFunnel summary={summary} channel={view} range={data.range} onOpenList={openList} />
 
-          <ChannelCards view={view} data={data} />
+          <ChannelCards
+            view={view}
+            data={data}
+            onOpen={(kind, on, label) => openOutcomes({
+              kind,
+              channel: on,
+              program: slug,
+              sdr: apiParams.sdr,
+              theme: apiParams.theme,
+              from: data.range.from,
+              to: data.range.to,
+              title: `${label}: ${on === 'email' ? 'Email' : 'LinkedIn'}`,
+            })}
+          />
 
           <Card
             className="flush"
@@ -144,6 +159,8 @@ export default function ProgramDetailView({ slug }) {
                 columns={meetingColumns({ teamColor, withFilters }).filter(c => ['date', 'company', 'campaign', 'sdr', 'status'].includes(c.key))}
                 rows={data.meetings}
                 rowKey={r => r.id}
+                onRowClick={r => r.domain && openCompany({ key: r.domain, company: r.company || r.domain, domain: r.domain })}
+                rowLabel={r => `Open the conversation with ${r.company || r.domain}`}
                 dense
                 pageSize={10}
                 empty="No meetings at these companies yet."
@@ -159,6 +176,7 @@ export default function ProgramDetailView({ slug }) {
         </div>
       )}
 
+      {outcomesPanel}
       <ConversationPanel
         target={panel?.type === 'company' ? panel.target : null}
         program={slug}

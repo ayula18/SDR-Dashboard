@@ -15,6 +15,7 @@ import StatTile from '../ui/StatTile';
 import MeetingEntry from './MeetingEntry';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import { SERIES, SyncStatus, meetingColumns, sdrHref, useProgramName } from './common';
+import { useConversation } from './outcomes';
 
 const SIZE_ORDER = ['1-10', '11-25', '26-50', '51-100', '101-200', '201-500', '501+', 'Unknown'];
 
@@ -27,6 +28,7 @@ function MeetingBars({ title, subtitle, rows, label, href }) {
 }
 
 export default function MeetingsView() {
+  const { openConversation, conversation } = useConversation();
   const { apiParams, get, setParams } = useFilters();
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
@@ -98,6 +100,8 @@ export default function MeetingsView() {
               columns={meetingColumns({ teamColor, withFilters })}
               rows={data.meetings}
               rowKey={r => r.id}
+              onRowClick={openConversation}
+              rowLabel={r => `Open the conversation with ${r.company || r.domain}`}
               searchable
               searchPlaceholder="Search companies, channels, SDRs"
               exportName="meetings"
@@ -106,6 +110,7 @@ export default function MeetingsView() {
           </Card>
         </div>
       )}
+      {conversation}
     </div>
   );
 }

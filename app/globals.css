@@ -1319,6 +1319,12 @@ html, body {
 .card.flush > .card-foot { padding: 0 18px 14px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.funnel-note { margin-top: 10px; }
+.trend-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.trend-controls-end { margin-left: auto; }
+.trend-numbers { display: inline-flex; align-items: baseline; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.trend-numbers strong { font-size: 16px; font-weight: 600; }
+.trend-empty { display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text-muted); }
 .is-refreshing { opacity: 0.55; }
 
 /* Badges */
@@ -1422,6 +1428,9 @@ code { font-size: 12px; background: var(--bg-elevated); padding: 1px 5px; border
 .cell-stack { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 1px; }
 .cell-stack.start { align-items: flex-start; }
 .dt-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 18px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-light); }
+.data-table tfoot td { padding: 12px 16px; font-weight: 600; font-variant-numeric: tabular-nums; border-top: 1px solid var(--border); }
+.card.flush .data-table tfoot td:first-child { padding-left: 18px; }
+.card.flush .data-table tfoot td:last-child { padding-right: 18px; }
 .dt-empty { padding: 28px 18px; text-align: center; font-size: 13px; color: var(--text-muted); }
 .truncate { display: inline-block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .wrap-text { white-space: normal; min-width: 240px; max-width: 420px; line-height: 1.45; }
@@ -1558,6 +1567,11 @@ button.stepper-body:hover { border-color: var(--border-strong); background: var(
 .company-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .company-list-item { display: flex; flex-direction: column; gap: 3px; width: 100%; text-align: left; padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-elevated); color: inherit; font: inherit; cursor: pointer; }
 .company-list-item:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+.company-list-item.static { cursor: default; }
+.company-list-item.static:hover { border-color: var(--border); background: transparent; }
+.count-link { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 3px; }
+.count-link:hover { color: var(--accent-soft); text-decoration: underline solid currentColor; }
+.count-link:focus-visible { outline: 2px solid var(--accent-soft); outline-offset: 2px; border-radius: 2px; }
 .company-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
 .company-list-quote { font-size: 13px; color: var(--text-secondary); line-height: 1.5; overflow-wrap: anywhere; }
 

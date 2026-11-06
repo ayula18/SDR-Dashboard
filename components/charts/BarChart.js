@@ -18,9 +18,12 @@ function columnPath(x, y, w, h, r = 4) {
 /**
  * Columns per period, grouped when there are up to three series. Bars are at
  * most 24px wide with a 2px gap inside a group; the whole period is the hover
- * target and the tooltip lists every series.
+ * target and the tooltip lists every series. `yMax` shares one scale across small
+ * multiples; `highlightLast` keeps the last n periods dark and recedes the rest,
+ * for a chart about comparing those; `onSelect(row)` makes a period with any value
+ * open something, by click or Enter.
  */
-export default function BarChart({ data = [], x = 'label', tooltipLabel, series = [], height = 220, format = fmtInt, integer = true, label }) {
+export default function BarChart({ data = [], x = 'label', tooltipLabel, series = [], height = 220, format = fmtInt, integer = true, label, yMax = null, highlightLast = 0, onSelect = null }) {
   const [ref, width] = useElementWidth();
   const [active, setActive] = useState(null);
   const xLabel = accessor(x);
@@ -32,7 +35,9 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
 
   const plotW = Math.max(40, width - PAD.left - PAD.right);
   const plotH = Math.max(40, height - PAD.top - PAD.bottom);
-  const maxValue = hasData ? Math.max(0, ...data.flatMap(d => series.map(s => Number(d[s.key]) || 0))) : 0;
+  const maxValue = yMax ?? (hasData ? Math.max(0, ...data.flatMap(d => series.map(s => Number(d[s.key]) || 0))) : 0);
+  const selectable = d => Boolean(onSelect) && series.some(s => Number(d[s.key]) > 0);
+  const recedes = i => (current != null ? current !== i : highlightLast > 0 && i < data.length - highlightLast);
   const scale = niceScale(maxValue, { integer });
   const band = plotW / Math.max(1, data.length);
   const gap = 2;
@@ -53,6 +58,8 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
       setActive(i => Math.max(0, (inRange(i) ?? data.length) - 1));
     } else if (event.key === 'Escape') {
       setActive(null);
+    } else if (event.key === 'Enter' && current != null && selectable(data[current])) {
+      onSelect(data[current]);
     }
   };
 
@@ -75,7 +82,7 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
                 <text key={`x${i}`} className="axis-text" x={PAD.left + i * band + band / 2} y={height - 6} textAnchor="middle">{xLabel(d)}</text>
               ) : null))}
               {data.map((d, i) => (
-                <g key={`b${i}`} opacity={current != null && current !== i ? 0.45 : 1}>
+                <g key={`b${i}`} opacity={recedes(i) ? 0.45 : 1}>
                   {series.map((s, si) => {
                     const h = ((Number(d[s.key]) || 0) / scale.max) * plotH;
                     return <path key={s.key} d={columnPath(barX(i, si), PAD.top + plotH - h, barW, h)} fill={s.color} />;
@@ -83,7 +90,17 @@ export default function BarChart({ data = [], x = 'label', tooltipLabel, series 
                 </g>
               ))}
               {data.map((d, i) => (
-                <rect key={`h${i}`} x={PAD.left + i * band} y={PAD.top} width={band} height={plotH} fill="transparent" onPointerEnter={() => setActive(i)} />
+                <rect
+                  key={`h${i}`}
+                  x={PAD.left + i * band}
+                  y={PAD.top}
+                  width={band}
+                  height={plotH}
+                  fill="transparent"
+                  style={selectable(d) ? { cursor: 'pointer' } : undefined}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={selectable(d) ? () => onSelect(d) : undefined}
+                />
               ))}
             </svg>
             {current != null && (

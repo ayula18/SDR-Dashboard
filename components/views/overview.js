@@ -1,14 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { fmtDateRange, fmtInt, fmtPct, fmtPeriod } from '@/lib/client/format';
-import BarChart from '../charts/BarChart';
-import ChartTable from '../charts/ChartTable';
-import HBarList from '../charts/HBarList';
-import Card from '../ui/Card';
+import { fmtDateRange, fmtInt } from '@/lib/client/format';
+import CountButton from '../ui/CountButton';
 import Delta from '../ui/Delta';
-import StatTile from '../ui/StatTile';
-import { KpiTile, SERIES, periodPhrase, programHref, sdrHref } from './common';
+import { KpiTile, periodPhrase, programHref } from './common';
 import { CHANNEL_PHRASE } from './program';
 import { DEFS } from './definitions';
 
@@ -64,100 +60,27 @@ export function OverviewLead({ summary, tiles, range, channel }) {
 
 
 /** The headline row, in the unit the channel is counted in. */
-export function OverviewTiles({ tiles, channel }) {
+export function OverviewTiles({ tiles, onOpen }) {
   return (
     <div className="tiles">
       <KpiTile label="Companies reached" kpi={tiles.companies} note={DEFS.companies} />
       <KpiTile label="Replies" kpi={tiles.replies} note={DEFS.replied} />
-      <KpiTile label="Positive replies" kpi={tiles.positive} note={DEFS.positive} />
-      <KpiTile label="Meetings" kpi={tiles.meetings} note={DEFS.meetings} />
+      <KpiTile label="Positive replies" kpi={tiles.positive} note={DEFS.positive} onOpen={onOpen && (() => onOpen('positive', 'Positive responses'))} />
+      <KpiTile label="Meetings" kpi={tiles.meetings} note={DEFS.meetings} onOpen={onOpen && (() => onOpen('meetings', 'Meetings booked'))} />
     </div>
-  );
-}
-
-function Bars({ title, subtitle, rows, label, href }) {
-  return (
-    <Card title={title} subtitle={subtitle}>
-      <HBarList
-        rows={rows}
-        label={label}
-        value="meetings"
-        href={href}
-        emptyText="No meetings in this range."
-      />
-    </Card>
-  );
-}
-
-const CHANNEL_MEETING_NOTE = {
-  both: 'Only meetings SDR outreach booked; AE, inbound and referral meetings are not counted.',
-  email: 'Meetings SDRs booked from an Instantly campaign. A meeting with no campaign match is not counted here.',
-  linkedin: 'Meetings SDRs booked from a HeyReach campaign. A meeting with no campaign match is not counted here.',
-};
-
-const RESCHEDULE_NOTE = `${DEFS.meetings}. A booking that moved counts once, at its later slot.`;
-
-/**
- * What was booked in the range: the totals, the shape of it per period, and
- * which channel, SDR and program it came from.
- */
-export function MeetingsPanel({ meetings, grain, channel, withFilters, programName }) {
-  const totals = meetings.totals;
-  const unit = grain === 'month' ? 'month' : 'week';
-  const series = [{ key: 'meetings', label: 'Booked', color: SERIES[0] }];
-  const x = r => fmtPeriod(grain, r.period);
-  const tip = r => fmtPeriod(grain, r.period, { long: true });
-
-  return (
-    <>
-      <div className="section-header">
-        <div>
-          <h2 className="section-title">Meetings</h2>
-          <p className="card-sub">{CHANNEL_MEETING_NOTE[channel]} {RESCHEDULE_NOTE}</p>
-        </div>
-        <Link className="btn btn-small" href={withFilters('/meetings')}>All SDR-booked meetings</Link>
-      </div>
-
-      <div className="tiles">
-        <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
-        <StatTile label="Rescheduled" value={fmtInt(totals.rescheduled)} note={totals.upcoming ? `${fmtInt(totals.upcoming)} still ahead` : 'Moved to a later slot'} />
-      </div>
-
-      <Card
-        title={`Booked per ${unit}`}
-        subtitle="The last 12 periods, by meeting date."
-        table={() => <ChartTable rows={meetings.trend} x={tip} xLabel={unit === 'month' ? 'Month' : 'Week'} series={series} />}
-      >
-        <BarChart data={meetings.trend} x={x} tooltipLabel={tip} series={series} label={`Meetings per ${unit}`} />
-      </Card>
-
-      <div className="grid-3">
-        <Bars title="Where they came from" subtitle="The channel the sheet credits." rows={meetings.byChannel} label="key" />
-        <Bars
-          title="By SDR"
-          subtitle="Named in the sheet, or the SDR whose campaign reached the company."
-          rows={meetings.bySdr}
-          label="key"
-          href={r => (r.key === 'Unattributed' ? undefined : withFilters(sdrHref(r.key)))}
-        />
-        <Bars
-          title="By program"
-          subtitle="From the campaign the meeting is attributed to."
-          rows={meetings.byProgram}
-          label={r => (r.key === 'none' ? 'No program' : programName(r.key))}
-          href={r => (r.key === 'none' ? undefined : withFilters(programHref(r.key)))}
-        />
-      </div>
-    </>
   );
 }
 
 const stack = (value, sub) => <span className="cell-stack">{value}{sub && <span className="cell-sub">{sub}</span>}</span>;
 
 /** The programs behind the range: what each sent on the channel in view, and what came back. */
-export function programColumns({ channel, withFilters, programName }) {
+export function programColumns({ channel, withFilters, programName, onOpen }) {
   const email = channel !== 'linkedin';
   const linkedin = channel !== 'email';
+  // 'No program' is everything else, which no filter can ask for.
+  const count = (r, kind, what) => (onOpen && r.program !== 'none'
+    ? <CountButton value={r[kind === 'positive' ? 'positive' : 'meetings']} label={`See who: ${programName(r.program)}, ${what}`} onClick={() => onOpen(kind, r.program, `${what}: ${programName(r.program)}`)} />
+    : fmtInt(r[kind === 'positive' ? 'positive' : 'meetings']));
   return [
     {
       key: 'program',
@@ -172,7 +95,7 @@ export function programColumns({ channel, withFilters, programName }) {
     linkedin && { key: 'invitesSent', label: 'Invites sent', hint: DEFS.invites, align: 'right', csv: r => r.invitesSent, render: r => stack(fmtInt(r.invitesSent), `${fmtInt(r.invitesAccepted)} accepted`) },
     linkedin && { key: 'messagesSent', label: 'First messages', hint: DEFS.firstMessages, align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
     { key: 'replies', label: 'Replies', hint: DEFS.replied, align: 'right', csv: r => r.replies, render: r => fmtInt(r.replies) },
-    { key: 'positive', label: 'Positive', hint: DEFS.positive, align: 'right', csv: r => r.positive, render: r => fmtInt(r.positive) },
-    { key: 'meetings', label: 'Meetings', hint: DEFS.meetings, align: 'right', csv: r => r.meetings, render: r => fmtInt(r.meetings) },
+    { key: 'positive', label: 'Positive', hint: DEFS.positive, align: 'right', csv: r => r.positive, render: r => count(r, 'positive', 'Positive responses') },
+    { key: 'meetings', label: 'Meetings', hint: DEFS.meetings, align: 'right', csv: r => r.meetings, render: r => count(r, 'meetings', 'Meetings') },
   ].filter(Boolean);
 }

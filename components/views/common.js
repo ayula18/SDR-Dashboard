@@ -1,5 +1,6 @@
 'use client';
 
+import CountButton from '../ui/CountButton';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { Clock } from 'lucide-react';
@@ -26,6 +27,7 @@ export const pctChange = (current, previous) =>
   (previous > 0 ? Math.round(((current - previous) / previous) * 1000) / 10 : null);
 
 const PERIOD_PHRASES = {
+  yesterday: 'yesterday',
   'this-week': 'this week so far',
   'last-week': 'last week',
   'last-4-weeks': 'in the last 4 weeks',
@@ -74,12 +76,12 @@ export function SyncStatus() {
 }
 
 /** Stat tile from a KPI payload ({ value, previous, change | pointChange, trend }). */
-export function KpiTile({ label, kpi, format = fmtCompact, rate = false, upIsGood = true, note }) {
+export function KpiTile({ label, kpi, format = fmtCompact, rate = false, upIsGood = true, note, onOpen }) {
   if (!kpi) return null;
   return (
     <StatTile
       label={label}
-      value={format(kpi.value)}
+      value={<CountButton value={kpi.value} format={format} label={`See who: ${label}`} onClick={onOpen} />}
       previous={kpi.previous != null ? format(kpi.previous) : null}
       change={rate ? undefined : kpi.change}
       points={rate ? kpi.pointChange : undefined}
@@ -242,7 +244,7 @@ export function rateCell(rate, lowSample, detail) {
  * Whether a booking is still ahead or moved to a later slot. Whether a past
  * meeting was held is deliberately not shown anywhere (Ayush, 2026-11-03).
  */
-const MEETING_STATUS = {
+export const MEETING_STATUS = {
   rescheduled: 'Rescheduled',
   upcoming: 'Upcoming',
 };
@@ -474,7 +476,7 @@ export function accountColumns() {
   ];
 }
 
-const POSITIVE_SOURCE = { sheet: 'Sheet', booked: 'Booked meeting', labels: 'Reply label' };
+export const POSITIVE_SOURCE = { sheet: 'Sheet', booked: 'Booked meeting', labels: 'Reply label' };
 
 /**
  * The positive responses behind a range and what each person said. SDR rows are

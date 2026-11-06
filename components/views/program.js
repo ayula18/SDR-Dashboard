@@ -6,6 +6,7 @@ import ChartTable from '../charts/ChartTable';
 import LineChart from '../charts/LineChart';
 import Badge from '../ui/Badge';
 import Card from '../ui/Card';
+import CountButton from '../ui/CountButton';
 import Delta from '../ui/Delta';
 import Drawer from '../ui/Drawer';
 import { Person } from '../ui/Person';
@@ -20,11 +21,11 @@ const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : man
 export const CHANNEL_VIEWS = [['both', 'Both'], ['email', 'Email'], ['linkedin', 'LinkedIn']];
 export const CHANNEL_PHRASE = { both: 'on email and LinkedIn', email: 'by email', linkedin: 'on LinkedIn' };
 
-/** Both, Email or LinkedIn. A channel the program has never used is shown but can't be picked. */
-export function ChannelToggle({ value, onChange, available }) {
+/** Both, Email or LinkedIn, or the `views` a page offers. A channel the program has never used is shown but can't be picked. */
+export function ChannelToggle({ value, onChange, available, views = CHANNEL_VIEWS }) {
   return (
     <div className="segmented" role="group" aria-label="Channel">
-      {CHANNEL_VIEWS.map(([key, label]) => {
+      {views.map(([key, label]) => {
         const missing = key !== 'both' && available && !available[key];
         return (
           <button
@@ -156,21 +157,21 @@ export function CompanyFunnel({ summary, channel, range, onOpenList, subtitle, o
  * who it reached, the positive replies that came in, and the meetings SDRs
  * booked from that channel's campaigns.
  */
-export function ChannelCard({ channel, numbers, change }) {
+export function ChannelCard({ channel, numbers, change, onOpen }) {
   if (!numbers) return null;
   const email = channel === 'email';
   const stats = email
     ? [
-      { key: 'emailsSent', label: 'Emails sent', sub: DEFS.emailsSent },
+      { key: 'emailsSent', label: 'Total emails (all steps)', sub: DEFS.emailsSent },
       { key: 'peopleEmailed', label: 'People emailed', sub: DEFS.peopleEmailed },
-      { key: 'positive', label: 'Positive responses', sub: DEFS.positive },
-      { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsEmail },
+      { key: 'positive', label: 'Positive responses', sub: DEFS.positive, outcome: 'positive' },
+      { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsEmail, outcome: 'meetings' },
     ]
     : [
       { key: 'invitesSent', label: 'LinkedIn invites sent', sub: DEFS.invites },
       { key: 'accepted', label: 'LinkedIn invites accepted', sub: DEFS.accepted },
-      { key: 'positive', label: 'Positive responses', sub: DEFS.positive },
-      { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsLinkedin },
+      { key: 'positive', label: 'Positive responses', sub: DEFS.positive, outcome: 'positive' },
+      { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsLinkedin, outcome: 'meetings' },
     ];
 
   return (
@@ -185,7 +186,9 @@ export function ChannelCard({ channel, numbers, change }) {
           <div key={s.key} className="mini-stat">
             <span className="mini-stat-label">{s.label}</span>
             <span className="mini-stat-value">
-              {fmtInt(numbers[s.key])}
+              {s.outcome && onOpen
+                ? <CountButton value={numbers[s.key]} label={`See who: ${s.label}`} onClick={() => onOpen(s.outcome, channel, s.label)} />
+                : fmtInt(numbers[s.key])}
               {change && <Delta small change={change[s.key]} upIsGood={s.upIsGood !== false} />}
             </span>
             {s.sub && <span className="tile-foot-text">{s.sub}</span>}
@@ -206,9 +209,9 @@ export function ChannelRatesCard({ channel, numbers, change }) {
   const base = email ? numbers.peopleEmailed : numbers.invitesSent;
   const unit = email ? 'people emailed' : 'invites sent';
   const stats = [
-    ...(email ? [] : [{ key: 'acceptanceRate', label: 'Acceptance %', count: numbers.accepted, digits: 1 }]),
-    { key: 'positiveRate', label: 'Positive response %', count: numbers.positive, digits: 2 },
-    { key: 'meetingRate', label: 'Meetings booked %', count: numbers.meetings, digits: 2 },
+    ...(email ? [] : [{ key: 'acceptanceRate', label: 'Acceptance %', count: numbers.accepted, digits: 1, formula: DEFS.formulaAcceptance }]),
+    { key: 'positiveRate', label: 'Positive response %', count: numbers.positive, digits: 2, formula: email ? DEFS.formulaPositiveEmail : DEFS.formulaPositiveLinkedin },
+    { key: 'meetingRate', label: 'Meetings booked %', count: numbers.meetings, digits: 2, formula: email ? DEFS.formulaMeetingEmail : DEFS.formulaMeetingLinkedin },
   ];
   return (
     <Card title={email ? 'Email %' : 'LinkedIn %'} subtitle={email ? DEFS.ratesEmail : DEFS.ratesLinkedin}>
@@ -221,6 +224,7 @@ export function ChannelRatesCard({ channel, numbers, change }) {
               {change && <Delta small points={change[s.key]} />}
             </span>
             <span className="tile-foot-text">{fmtInt(s.count)} of {fmtInt(base)} {unit}</span>
+            <span className="tile-foot-text">{s.formula}</span>
           </div>
         ))}
       </div>
@@ -229,13 +233,13 @@ export function ChannelRatesCard({ channel, numbers, change }) {
 }
 
 /** The counts and the rates, for one channel or both side by side. */
-export function ChannelCards({ view, data }) {
+export function ChannelCards({ view, data, onOpen }) {
   const cards = view === 'both' ? ['email', 'linkedin'] : [view];
   const both = cards.length === 2;
   return (
     <>
       <div className={both ? 'grid-2' : undefined}>
-        {cards.map(channel => <ChannelCard key={channel} channel={channel} numbers={data[channel]} change={data.change?.[channel]} />)}
+        {cards.map(channel => <ChannelCard key={channel} channel={channel} numbers={data[channel]} change={data.change?.[channel]} onOpen={onOpen} />)}
       </div>
       <div className={both ? 'grid-2' : undefined}>
         {cards.map(channel => <ChannelRatesCard key={channel} channel={channel} numbers={data[channel]} change={data.change?.[channel]} />)}
@@ -347,11 +351,16 @@ export function programCompanyColumns(channel) {
 /**
  * Per SDR in the range: companies touched, then each channel's volume and
  * replies. A page without the full company list leaves out `withCompanies`;
- * `withMeetings` adds what those SDRs booked.
+ * `withMeetings` adds what those SDRs booked; `onOpen(kind, channel, sdr, title)` makes
+ * positives and meetings open the names behind them.
  */
-export function bySdrColumns({ channel, teamColor, withFilters, withCompanies = true, withMeetings = false }) {
+export function bySdrColumns({ channel, teamColor, withFilters, withCompanies = true, withMeetings = false, onOpen }) {
   const email = channel !== 'linkedin';
   const linkedin = channel !== 'email';
+  const count = (value, kind, on, r, what) => (onOpen && r.sdr !== 'Unattributed'
+    ? <CountButton value={value} label={`See who: ${r.sdr}, ${what}`} onClick={() => onOpen(kind, on, r.sdr, `${what}: ${r.sdr}`)} />
+    : fmtInt(value));
+  const positiveNote = (value, on, r, name) => <>{count(value, 'positive', on, r, `${name} positive responses`)} positive</>;
   return [
     {
       key: 'sdr',
@@ -364,11 +373,11 @@ export function bySdrColumns({ channel, teamColor, withFilters, withCompanies = 
     },
     withCompanies && { key: 'companies', label: 'Companies', align: 'right', csv: r => r.companies, render: r => stack(fmtInt(r.companies), `${fmtInt(r.positiveCompanies)} positive`) },
     email && { key: 'emailsSent', label: 'First emails', hint: DEFS.firstEmails, align: 'right', csv: r => r.emailsSent, render: r => fmtInt(r.emailsSent) },
-    email && { key: 'emailReplied', label: 'Email replies', hint: DEFS.replied, align: 'right', csv: r => r.emailReplied, render: r => stack(fmtInt(r.emailReplied), `${fmtInt(r.emailPositive)} positive`) },
+    email && { key: 'emailReplied', label: 'Email replies', hint: DEFS.replied, align: 'right', csv: r => r.emailReplied, render: r => stack(fmtInt(r.emailReplied), positiveNote(r.emailPositive, 'email', r, 'Email')) },
     linkedin && { key: 'invitesSent', label: 'Invites sent', hint: DEFS.invites, align: 'right', csv: r => r.invitesSent, render: r => stack(fmtInt(r.invitesSent), `${fmtInt(r.invitesAccepted)} accepted`) },
     linkedin && { key: 'messagesSent', label: 'First messages', hint: DEFS.firstMessages, align: 'right', csv: r => r.messagesSent, render: r => fmtInt(r.messagesSent) },
-    linkedin && { key: 'linkedinReplied', label: 'LinkedIn replies', hint: DEFS.replied, align: 'right', csv: r => r.linkedinReplied, render: r => stack(fmtInt(r.linkedinReplied), `${fmtInt(r.linkedinPositive)} positive`) },
-    withMeetings && { key: 'meetings', label: 'Meetings', hint: DEFS.meetings, align: 'right', csv: r => r.meetings, render: r => fmtInt(r.meetings) },
+    linkedin && { key: 'linkedinReplied', label: 'LinkedIn replies', hint: DEFS.replied, align: 'right', csv: r => r.linkedinReplied, render: r => stack(fmtInt(r.linkedinReplied), positiveNote(r.linkedinPositive, 'linkedin', r, 'LinkedIn')) },
+    withMeetings && { key: 'meetings', label: 'Meetings', hint: DEFS.meetings, align: 'right', csv: r => r.meetings, render: r => count(r.meetings, 'meetings', channel === 'both' ? null : channel, r, 'Meetings') },
   ].filter(Boolean);
 }
 

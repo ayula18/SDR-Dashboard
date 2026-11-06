@@ -17,6 +17,7 @@ import { Person } from '../ui/Person';
 import StatTile from '../ui/StatTile';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import { ChannelTrendCards, VerdictBadge, replySort } from './channels';
+import { useConversation } from './outcomes';
 import {
   ReplyFeed, SyncStatus, TrendCards, accountColumns, isTestName, meetingColumns, programHref, sdrHref, statusLabel, useProgramName,
 } from './common';
@@ -202,6 +203,7 @@ function LinkedinCampaign({ data }) {
 }
 
 export default function CampaignDetailView({ id }) {
+  const { openConversation, conversation } = useConversation();
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
   const programName = useProgramName();
@@ -325,12 +327,15 @@ export default function CampaignDetailView({ id }) {
               columns={meetingColumns({ teamColor, withFilters })}
               rows={data.meetings}
               rowKey={r => r.id}
+              onRowClick={openConversation}
+              rowLabel={r => `Open the conversation with ${r.company || r.domain}`}
               exportName={`${campaign.name}-meetings`}
               empty="No meetings traced back to this campaign."
             />
           </Card>
         </div>
       )}
+      {conversation}
     </div>
   );
 }

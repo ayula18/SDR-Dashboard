@@ -163,11 +163,11 @@ and what came of it?
     or with nobody recorded as booking it, but we had reached that company within 30 days. It is
     flagged beside the campaign and the SDR who did the outreach, and counted for neither.
   - **Neither**: no outreach in those 30 days, so no campaign, SDR or program is named at all.
-- **Ranges**: whole weeks (Monday start) or months. A custom range rounds out to whole weeks, or to
-  whole months when it starts on the 1st and spans a month or more, because platform volumes are
-  stored per week and month. The comparison is the previous range of the same length. While a
-  range is still running, date-based numbers use the same elapsed days and platform volumes are
-  pro-rated.
+- **Ranges**: yesterday, whole weeks (Monday start) or whole months. A custom range is exactly the
+  days picked. A program page's since-start range rounds out to whole weeks, or to whole months when
+  it starts on the 1st and spans a month or more. The comparison is the previous range of the same
+  length. While a range is still running, date-based numbers use the same elapsed days and platform
+  volumes are pro-rated.
 - **Cohort views** (What's Working, coverage) follow leads loaded in the range to whatever happened
   later. Rates under 100 contacted leads are flagged `lowSample`.
 
@@ -181,9 +181,11 @@ the range decides whether a trend is weekly or monthly (monthly past about four 
 | Endpoint | What it returns |
 |---|---|
 | `GET /api/meta` | SDRs, programs, themes, range presets, data warnings |
-| `GET /api/metrics/overview` | KPIs vs previous period with sparklines, outreach funnel, LinkedIn block, 12-period trend |
+| `GET /api/metrics/overview` | KPIs vs previous period with sparklines, outreach funnel, LinkedIn block |
 | `GET /api/metrics/trends?count=12` | Period series with WoW / MoM comparison |
-| `GET /api/metrics/sdrs` | Leaderboard with rates and change |
+| `GET /api/metrics/sdrs` | Each SDR's funnel for exactly the dates picked, the total, and what campaigns outside the roster add |
+| `GET /api/metrics/outcomes?kind=&channel=` | The people behind a Positive or Meetings number (`positive`, `meetings`), with what they said. `channel`: `email`, `linkedin`, or `none` for meetings with no campaign |
+| `GET /api/metrics/funnel?grain=&count=` | The funnel over the last full days, weeks or months (`day`, `week`, `month`): everyone, the SDRs together, each SDR |
 | `GET /api/metrics/sdrs/:name` | One SDR: overview, what works by theme/program/segment/step, campaigns, meetings |
 | `GET /api/metrics/campaigns?show=&q=&platform=` | Campaigns on both channels with companies, whole-campaign results and activity in the range. `show`: `active` (default), `current` (running or active in range), `running`, `all` |
 | `GET /api/metrics/campaigns/:id` | Email: funnel, weekly trend, steps with copy, replies, accounts, meetings. LinkedIn: people and company funnels, companies, senders, replies |

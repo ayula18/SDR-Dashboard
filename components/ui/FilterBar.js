@@ -8,19 +8,14 @@ import MultiSelect from './MultiSelect';
 
 const CUSTOM = 'custom';
 const DAY_MS = 86_400_000;
-// A range can cover at most 104 whole weeks.
-const MAX_DAYS = 728;
+const MAX_DAYS = 730;
 
 const localToday = () => {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 };
 
-/**
- * A start and end date with Apply. Like the presets, the range is counted in
- * whole weeks (whole months when it starts on the 1st), because email and
- * LinkedIn volumes are stored that way; the dates line shows where it landed.
- */
+/** A start and end date with Apply. The range is exactly those days. */
 function CustomRange({ initialFrom, initialTo, applied, onApply, onCancel }) {
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
@@ -46,20 +41,19 @@ function CustomRange({ initialFrom, initialTo, applied, onApply, onCancel }) {
  * The single filter row above a page's content: the date range, then who and
  * what. The selection lives in the URL, and everything below re-renders against
  * the same slice. `leading` goes before the date range; `extraRanges` adds
- * page-specific range options, such as a program's "Since start".
+ * page-specific range options, such as a program's "Since start"; `compares`
+ * says whether the page shows a change against the range before.
  *
  * There is no weekly/monthly control. The range decides how the trend charts
  * are bucketed, so a chart can never disagree with the dates beside it; a
  * custom range picks its own buckets the same way a preset does.
  */
-export default function FilterBar({ range, hide = [], defaultRange = 'last-4-weeks', extraRanges = [], leading, children }) {
+export default function FilterBar({ range, hide = [], defaultRange = 'last-4-weeks', extraRanges = [], compares = true, leading, children }) {
   const { meta } = useDashboard();
   const { values, setParams } = useFilters({ defaultRange });
   const [picking, setPicking] = useState(false);
   const custom = Boolean(values.from);
   const filtered = ['sdr', 'program', 'theme', 'from'].some(k => values[k] && !hide.includes(k)) || values.range !== defaultRange;
-  // Custom dates round out to whole weeks or months; say so when that moved them.
-  const rounded = custom && range && (range.from !== values.from || (values.to && range.to !== values.to));
 
   const pickRange = value => {
     if (value === CUSTOM) {
@@ -141,7 +135,7 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
         <span className="filters-dates">
           {range.preset === 'since-start'
             ? `${fmtDateRange(range.from, range.to)}, since the first campaign`
-            : `${fmtDateRange(range.from, range.to)}${range.inProgress ? ' so far' : ''}${rounded ? `, in whole ${range.rangeGrain === 'month' ? 'months' : 'weeks'}` : ''}, compared with ${fmtDateRange(range.previous.from, range.previous.to)}`}
+            : `${fmtDateRange(range.from, range.to)}${range.inProgress ? ' so far' : ''}${compares ? `, compared with ${fmtDateRange(range.previous.from, range.previous.to)}` : ''}`}
         </span>
       )}
     </div>

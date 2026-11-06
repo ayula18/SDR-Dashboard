@@ -14,8 +14,10 @@ import { Avatar } from '../ui/Person';
 import { ErrorState, LoadingBlock } from '../ui/States';
 import { campaignColumns, KpiTiles, meetingColumns, PositiveResponses, SyncStatus, TrendCards, useProgramName } from './common';
 import { DEFS } from './definitions';
+import { useConversation } from './outcomes';
 
 export default function SdrDetailView({ name }) {
+  const { openConversation, conversation } = useConversation();
   const { apiParams } = useFilters();
   const withFilters = useLinkWithFilters();
   const teamColor = useTeamColor();
@@ -74,7 +76,7 @@ export default function SdrDetailView({ name }) {
           </Card>
 
           <Card className="flush" title="Positive responses" subtitle={DEFS.positiveListSdr}>
-            <PositiveResponses rows={data.positives} withSdr={false} exportName={`${name}-positive-responses`} />
+            <PositiveResponses rows={data.positives} withSdr={false} exportName={`${name}-positive-responses`} onOpen={openConversation} />
           </Card>
 
           <Card className="flush" title="Campaigns" subtitle="Campaigns with activity in this range.">
@@ -94,12 +96,15 @@ export default function SdrDetailView({ name }) {
               columns={meetingColumns({ teamColor, withFilters, withSdr: false })}
               rows={data.meetingsList}
               rowKey={r => r.id}
+              onRowClick={openConversation}
+              rowLabel={r => `Open the conversation with ${r.company || r.domain}`}
               exportName={`${name}-meetings`}
               empty="No meetings credited in this range."
             />
           </Card>
         </div>
       )}
+      {conversation}
     </div>
   );
 }

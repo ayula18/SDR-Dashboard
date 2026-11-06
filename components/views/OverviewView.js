@@ -15,15 +15,26 @@ import WarningsBanner from '../ui/WarningsBanner';
 import ConversationPanel from './ConversationPanel';
 import { PositiveResponses, ReplyFeed, SyncStatus, useProgramName } from './common';
 import { DEFS } from './definitions';
-import { MeetingsPanel, OverviewLead, OverviewTiles, programColumns } from './overview';
-import {
-  ChannelCards, ChannelToggle, ProgramTrend, bySdrColumns, programCompanyColumns, unresolvedNote,
-} from './program';
+import { OverviewComparison } from './funnel';
+import { useOutcomes } from './outcomes';
+import { OverviewLead, OverviewTiles, programColumns } from './overview';
+import { ChannelCards, ChannelToggle, bySdrColumns, unresolvedNote } from './program';
+
+/** What the SDR list leaves out, so it still reconciles with the rest of the page. */
+function outsideNote({ emailsSent, invitesSent, positive, meetings }) {
+  const parts = [
+    emailsSent > 0 && `${fmtInt(emailsSent)} first emails`,
+    invitesSent > 0 && `${fmtInt(invitesSent)} invites`,
+    positive > 0 && `${fmtInt(positive)} positive`,
+    meetings > 0 && `${fmtInt(meetings)} ${meetings === 1 ? 'meeting' : 'meetings'}`,
+  ].filter(Boolean);
+  return parts.length ? `Outside these SDRs (AI SDR and other campaigns): ${parts.join(', ')}. Pick someone in the SDR filter to see them here.` : undefined;
+}
 
 /**
  * Everything the team sent and everything that came back, for a range and a
  * channel (both | email | linkedin), counted the way a program page counts it:
- * companies first, then each channel, then the meetings that came of it.
+ * companies first, then each channel, then who it came from and what they said.
  */
 export default function OverviewView() {
   const { apiParams, get, setParams } = useFilters();
@@ -41,10 +52,23 @@ export default function OverviewView() {
     target: { key: company.key, name: company.company, domain: company.domain },
   }), []);
 
-  const grain = data?.range?.grain || 'week';
   const view = data?.channel || channel;
   const summary = data?.companySummary;
-  const empty = data && summary.total === 0 && data.meetings.totals.meetings === 0;
+  const empty = data && summary.total === 0 && data.tiles.meetings.value === 0;
+
+  const { openOutcomes, outcomesPanel } = useOutcomes();
+  const inRange = (kind, on, title, narrowed = {}) => openOutcomes({
+    kind,
+    channel: on,
+    sdr: apiParams.sdr,
+    program: apiParams.program,
+    theme: apiParams.theme,
+    ...narrowed,
+    from: data.range.from,
+    to: data.range.to,
+    title,
+  });
+  const channelOfView = view === 'both' ? null : view;
 
   return (
     <div className="page">
@@ -70,49 +94,34 @@ export default function OverviewView() {
 
       {data && !empty && (
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
-          <OverviewLead summary={summary} tiles={data.tiles} range={data.range} channel={view} companies={data.companies} />
-          <OverviewTiles tiles={data.tiles} channel={view} />
+          <OverviewLead summary={summary} tiles={data.tiles} range={data.range} channel={view} />
+          <OverviewTiles tiles={data.tiles} onOpen={(kind, title) => inRange(kind, channelOfView, title)} />
+          {unresolvedNote(summary) && <p className="card-sub">{unresolvedNote(summary)}</p>}
 
-          <ChannelCards view={view} data={data} />
-
-          <ProgramTrend rows={data.trend} grain={grain} channel={view} />
-
-          <MeetingsPanel
-            meetings={data.meetings}
-            grain={grain}
-            channel={view}
-            withFilters={withFilters}
-            programName={programName}
+          <ChannelCards
+            view={view}
+            data={data}
+            onOpen={(kind, on, label) => inRange(kind, on, `${label}: ${on === 'email' ? 'Email' : 'LinkedIn'}`)}
           />
 
-          <Card
-            className="flush"
-            title="Companies that came back"
-            subtitle="Every company that replied or took a meeting after being touched in this range, furthest stage first. Open one to read the conversation."
-            footnote={[
-              data.companiesCapped ? 'Only the first 1,000 are listed.' : null,
-              unresolvedNote(summary),
-            ].filter(Boolean).join(' ') || undefined}
-          >
-            <DataTable
-              columns={programCompanyColumns(view)}
-              rows={data.companies}
-              rowKey={r => r.key}
-              onRowClick={openCompany}
-              rowLabel={r => `Open the conversation with ${r.company}`}
-              activeKey={panel?.type === 'company' ? panel.target.key : null}
-              searchable
-              searchPlaceholder="Search companies"
-              exportName="companies-that-replied"
-              pageSize={25}
-              empty="Nobody has replied in this range yet."
-            />
-          </Card>
+          <OverviewComparison channel={view} openOutcomes={openOutcomes} />
 
           <div className="grid-2">
-            <Card className="flush" title={<Link href={withFilters('/sdrs')}>SDRs</Link>} subtitle="What each SDR sent in this range and what came back.">
+            <Card
+              className="flush"
+              title={<Link href={withFilters('/sdrs')}>SDRs</Link>}
+              subtitle="What each SDR sent in this range and what came back."
+              footnote={outsideNote(data.outsideSdrs)}
+            >
               <DataTable
-                columns={bySdrColumns({ channel: view, teamColor, withFilters, withCompanies: false, withMeetings: true })}
+                columns={bySdrColumns({
+                  channel: view,
+                  teamColor,
+                  withFilters,
+                  withCompanies: false,
+                  withMeetings: true,
+                  onOpen: (kind, on, sdr, title) => inRange(kind, on, title, { sdr }),
+                })}
                 rows={data.bySdr}
                 rowKey={r => r.sdr}
                 dense
@@ -121,7 +130,12 @@ export default function OverviewView() {
             </Card>
             <Card className="flush" title={<Link href={withFilters('/programs')}>Programs</Link>} subtitle="Specialised outreach in this range.">
               <DataTable
-                columns={programColumns({ channel: view, withFilters, programName })}
+                columns={programColumns({
+                  channel: view,
+                  withFilters,
+                  programName,
+                  onOpen: (kind, program, title) => inRange(kind, channelOfView, title, { program }),
+                })}
                 rows={data.byProgram}
                 rowKey={r => r.program}
                 dense
@@ -151,6 +165,7 @@ export default function OverviewView() {
         channel={view}
         onClose={closePanel}
       />
+      {outcomesPanel}
     </div>
   );
 }

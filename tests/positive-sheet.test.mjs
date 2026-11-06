@@ -332,10 +332,9 @@ test('not now is not positive on its own: only a yes is, unless the sheet logged
 });
 
 test('every page counts both channels wherever it says Positive, and the rates stay email over email', () => {
-  for (const name of ['sdrs.js', 'overview.js', 'programs.js', 'trends.js']) {
+  for (const name of ['funnel.js', 'overview.js', 'programs.js', 'trends.js']) {
     assert.match(metric(name), /linkedinOutcomes\(/, `${name} leaves LinkedIn positives out`);
   }
-  assert.match(metric('sdrs.js'), /const positiveRate = rate\(o\.positive \|\| 0, leadsContacted\)/);
   assert.match(metric('trends.js'), /positiveRate: rate\(o\.positive \|\| 0, e\.leadsContacted \|\| 0\)/);
   assert.match(metric('trends.js'), /allPositive: \(o\.positive \|\| 0\) \+ \(r\.positive \|\| 0\)/);
   assert.match(metric('programs.js'), /\|\| s\.emailPositive \|\| s\.linkedinPositive\)/, 'an SDR credited only by the sheet disappears from By SDR');
