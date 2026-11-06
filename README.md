@@ -61,8 +61,10 @@ you in here.
 - **Data health and the warnings banner show the AI SDR syncs**, so a stalled connector is
   visible here too.
 
-The daily cron (`vercel.json`) runs every job incrementally within one ~5-minute function call.
-Campaigns, weekly numbers, reply sentiment and meetings go first. Leads and step analytics go
+`/api/cron/sync` is called once a day by Vercel Cron (`vercel.json`) and through the day by
+cron-job.org. Each call runs only the jobs that are due, about every 6 hours each (`EVERY_HOURS` in
+`lib/sync/plan.js`), within one ~5-minute function call, and a call with nothing due ends at once.
+The Sync button on Data health and `npm run sync` always run. Campaigns, weekly numbers, reply sentiment and meetings go first. Leads and step analytics go
 last and continue where they stopped on the next run. Every API request times out after 30s
 and retries.
 
@@ -205,7 +207,7 @@ Admin only:
 | `DELETE /api/admin/company-aliases?key=` | Removes a company mapping |
 | `POST /api/admin/meetings/import` | Raw CSV of the meetings audit sheet |
 
-`GET /api/cron/sync` runs the daily sync and requires `Authorization: Bearer $CRON_SECRET`.
+`GET /api/cron/sync` runs whichever sync jobs are due and requires `Authorization: Bearer $CRON_SECRET`.
 
 ## Known gaps
 

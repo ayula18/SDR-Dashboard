@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planRun, topoSort, stalenessHours } from '../lib/sync/plan.js';
+import { EVERY_HOURS, isDue, planRun, topoSort, stalenessHours } from '../lib/sync/plan.js';
+import { JOBS as REAL_JOBS } from '../lib/sync/jobs.js';
 
 const NOW = Date.parse('2026-10-08T03:20:00Z');
 const hoursAgo = h => new Date(NOW - h * 3_600_000).toISOString();
@@ -158,4 +159,27 @@ test('the mop-up pass still shares between several unfinished jobs', () => {
   assert.equal(slices.length, 2);
   assert.equal(slices.reduce((n, s) => n + s.budgetMs, 0), 100_000);
   for (const s of slices) assert.ok(s.budgetMs >= 20_000, `${s.job} kept its floor`);
+});
+
+test('a scheduled call leaves a job alone until its last full pass is old enough', () => {
+  const job = { name: 'instantly-campaigns' };
+  const ranAgo = hours => ({ 'instantly-campaigns': { lastSuccessAt: hoursAgo(hours) } });
+  assert.equal(isDue(job, ranAgo(EVERY_HOURS - 0.25), NOW), false);
+  assert.equal(isDue(job, ranAgo(EVERY_HOURS), NOW), true);
+  assert.equal(isDue(job, ranAgo(EVERY_HOURS + 40), NOW), true);
+});
+
+test('a job part-way through a pass, or one that never finished, is still due', () => {
+  const job = { name: 'instantly-leads' };
+  const midPass = { 'instantly-leads': { lastProgressAt: hoursAgo(0.1), lastSuccessAt: hoursAgo(EVERY_HOURS + 1) } };
+  assert.equal(isDue(job, midPass, NOW), true);
+  assert.equal(isDue(job, { 'instantly-leads': { lastProgressAt: hoursAgo(0.1) } }, NOW), true);
+  assert.equal(isDue(job, {}, NOW), true, 'no history at all runs everything rather than nothing');
+});
+
+test('leaving a job alone can never raise the stale warning on the dashboard', () => {
+  // meta.js flags a job past maxAgeHours, and a pass can take a few calls to finish.
+  for (const [name, job] of Object.entries(REAL_JOBS)) {
+    assert.ok(job.maxAgeHours >= EVERY_HOURS * 3, `${name}: flagged at ${job.maxAgeHours}h, due every ${EVERY_HOURS}h`);
+  }
 });

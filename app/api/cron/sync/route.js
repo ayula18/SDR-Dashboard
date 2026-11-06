@@ -19,22 +19,14 @@ const MIN_BUDGET_MS = 10_000;
 /**
  * Incremental sync. Callers send `Authorization: Bearer $CRON_SECRET`.
  *
- * `?budget=<seconds>` caps how long the run may take, because the caller's
- * patience is part of the problem:
+ * Vercel Cron calls this once a day (vercel.json) and cron-job.org calls it through
+ * the day, because a full pass does not fit in one call. Both are only clocks: each
+ * call starts just the jobs that are due (isDue in lib/sync/plan.js), and a job cut
+ * short by the time limit continues on the next call. A call with nothing due ends
+ * at once, so these calls cost next to nothing however often they come.
  *
- *   Vercel Cron (vercel.json)  no param → the full 280s, once a day. This
- *                              trigger has never missed: 16 of 16 days, all at
- *                              03:20:48.
- *   cron-job.org, hourly       ?budget=25 — it stops waiting after 30s and
- *                              marks the run failed, which over time looks like
- *                              a job that never works. A short run answers in
- *                              time, goes green, and the staleness ordering plus
- *                              each job's cursor means the next hour continues
- *                              where this one stopped. That is cron-job.org's
- *                              own advice for work that outlasts the limit.
- *
- * 24 hourly slices of ~22s plus the daily 280s is ~800s against the ~424s a
- * fully fresh day needs.
+ * cron-job.org stops waiting after 30s and shows a timeout, but the function carries
+ * on. `?budget=<seconds>` caps a run for a caller that needs a real answer in time.
  */
 export async function GET(request) {
   if (!authorized(request.headers.get('authorization'))) {
@@ -46,6 +38,6 @@ export async function GET(request) {
     : FULL_BUDGET_MS;
 
   const startedAt = Date.now();
-  const results = await runJobs(DEFAULT_SEQUENCE, { mode: 'incremental', triggeredBy: 'cron', budgetMs });
+  const results = await runJobs(DEFAULT_SEQUENCE, { mode: 'incremental', triggeredBy: 'cron', budgetMs, onlyDue: true });
   return Response.json({ budgetMs, tookMs: Date.now() - startedAt, results });
 }

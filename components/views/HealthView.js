@@ -29,7 +29,7 @@ function runDetail(run) {
   if (run.error) return run.error;
   if (run.stats?.reason) return run.stats.reason;
   return Object.entries(run.stats || {})
-    .filter(([key, value]) => typeof value !== 'object' && key !== 'complete' && key !== 'status')
+    .filter(([key, value]) => typeof value !== 'object' && !['complete', 'status', 'cpuMs'].includes(key))
     .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toLowerCase()} ${typeof value === 'number' ? fmtInt(value) : value}`)
     .join(', ');
 }
