@@ -37,7 +37,7 @@ you in here.
 | Replies and their text | The AI SDR app's Instantly and HeyReach syncs, archived in `ctx_events` | `reply-verdicts` (reads the archive) |
 | Reply labels | GPT-4.1 mini on Azure reads each reply's own words from `ctx_events` (keyword rules until then) | `reply-classify` |
 | Meetings as they are booked, and whether they happened | The booking bot's Slack alert, archived in `ctx_events` (Fireflies and HubSpot meetings confirm it happened) | `meetings-slack` (reads the archive) |
-| Meetings up to September 2026, with audit verdicts | "Qualified Meetings 2026 - Happened Audit" CSV | admin import, by hand |
+| The meetings audit: who booked, channel, segment, whether it happened | Google Sheet "Combined QMeeings Booked-2026" | `meetings-sheet`, daily, read-only |
 
 **Who pulls what.** Each kind of data is pulled by one app, and both apps can read everything.
 
@@ -207,7 +207,6 @@ Admin only:
 | `POST /api/admin/team` | `{ name, role?: 'sdr' \| 'other', aliases?, email?, color?, isActive? }`, then re-parses campaigns |
 | `POST /api/admin/company-aliases` | `{ name, domain }` or `{ name, notACompany: true }` for a LinkedIn company name |
 | `DELETE /api/admin/company-aliases?key=` | Removes a company mapping |
-| `POST /api/admin/meetings/import` | Raw CSV of the meetings audit sheet |
 
 `GET /api/cron/sync` runs whichever sync jobs are due and requires `Authorization: Bearer $CRON_SECRET`.
 
@@ -221,5 +220,5 @@ Admin only:
   several companies). They show by name until an admin maps them in Data health.
 - The people in paused and finished HeyReach campaigns keep the status they had when last read;
   invites accepted after a campaign stops only show in the campaign totals from `heyreach`.
-- Meetings up to September 2026 come from a CSV exported on 10 Sep 2026 and imported by hand; newer ones come from Slack, the SDR form and HubSpot, on their own. The audit sheet's qualified and deal value are stored but not shown.
+- Meetings come from the audit sheet, read daily, then the Slack booking alerts, the SDR form and HubSpot for whatever the sheet does not hold yet. The audit sheet's qualified and deal value are stored but not shown.
 # SDR-Dashboard

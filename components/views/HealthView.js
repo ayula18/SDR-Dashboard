@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, LoaderCircle, RefreshCw, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useDashboard } from '@/lib/client/dashboard-context';
 import { fmtDate, fmtDateRange, fmtInt, fmtPct, fmtRelative } from '@/lib/client/format';
 import { apiFetch, clearApiCache, useApi } from '@/lib/client/use-api';
@@ -102,46 +102,6 @@ function RosterControls({ member, onSaved }) {
         }}
       />
       {state.error && <span className="inline-error">{state.error.message}</span>}
-    </div>
-  );
-}
-
-function MeetingsImport({ onDone }) {
-  const [state, setState] = useState({ busy: false, result: null, error: null });
-
-  const onFile = async event => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    setState({ busy: true, result: null, error: null });
-    try {
-      const result = await apiFetch('/api/admin/meetings/import', {
-        method: 'POST',
-        body: await file.text(),
-        headers: { 'Content-Type': 'text/csv', 'X-File-Name': file.name },
-      });
-      clearApiCache();
-      setState({ busy: false, result, error: null });
-      onDone();
-    } catch (error) {
-      setState({ busy: false, result: null, error });
-    }
-  };
-
-  return (
-    <div>
-      <label className="btn">
-        {state.busy ? <LoaderCircle className="spin" aria-hidden="true" /> : <Upload aria-hidden="true" />}
-        {state.busy ? 'Importing' : 'Upload the meetings CSV'}
-        <input type="file" accept=".csv,text/csv" onChange={onFile} disabled={state.busy} className="sr-only" />
-      </label>
-      {state.result && (
-        <p className="card-foot">
-          Imported {fmtInt(state.result.imported)} meetings. {fmtInt(state.result.withoutDomain)} had no company domain and
-          {' '}{fmtInt(state.result.withoutDate)} had no date.
-        </p>
-      )}
-      {state.error && <p className="inline-error">{state.error.message}</p>}
     </div>
   );
 }
@@ -367,14 +327,8 @@ export default function HealthView() {
                   value={fmtInt(emailVerdicts?.total)}
                   sub={emailVerdicts ? `${fmtInt(emailVerdicts.labelled)} labelled by GPT-4.1 mini, latest ${fmtDate(emailVerdicts.latestReplyAt, { year: true })}` : undefined}
                 />
-                <MiniStat label="Meetings" value={fmtInt(data.data.meetings.total)} sub={data.data.meetings.importedAt ? `Imported ${fmtRelative(data.data.meetings.importedAt)}` : 'Not imported'} />
+                <MiniStat label="Meetings" value={fmtInt(data.data.meetings.total)} sub={data.data.meetings.importedAt ? `Updated ${fmtRelative(data.data.meetings.importedAt)}` : 'Not synced yet'} />
               </div>
-              {isAdmin && (
-                <div style={{ marginTop: 16 }}>
-                  <h3 className="subhead">Replace meetings with a new export of the audit sheet</h3>
-                  <MeetingsImport onDone={refresh} />
-                </div>
-              )}
             </Card>
           </div>
 

@@ -67,9 +67,13 @@ SELECT
   -- land on those: sdr_logs_positives says who can be credited, positives_from_sheet
   -- whether the sheet alone decides.
   COALESCE(t.logs_positives, FALSE) AS sdr_logs_positives,
-  (COALESCE(t.logs_positives, FALSE) AND NOT COALESCE(p.positives_from_labels, FALSE)) AS positives_from_sheet
+  (COALESCE(t.logs_positives, FALSE) AND NOT COALESCE(p.positives_from_labels, FALSE)) AS positives_from_sheet,
+  -- outreach, or a broadcast (031): event invites, announcements, hiring. A broadcast
+  -- keeps its sends and positives but never claims a meeting.
+  COALESCE(k.kind, 'outreach') AS kind
 FROM dash_campaigns c
 LEFT JOIN dash_campaign_overrides o ON o.campaign_id = c.id
+LEFT JOIN dash_campaign_kinds k ON k.campaign_id = c.id
 LEFT JOIN dash_team t ON t.name = CASE WHEN o.sdr IS NULL THEN c.parsed_sdr ELSE NULLIF(o.sdr, '') END
 LEFT JOIN dash_programs p ON p.slug = CASE WHEN o.program IS NULL THEN c.parsed_program ELSE NULLIF(o.program, '') END;
 
@@ -378,12 +382,16 @@ WITH m AS (
     --   3 that form names something else: Ads, Inbound, Referral, Ecosystem
     --   4 the audit sheet or booking alert names an SDR, or calls the channel SDR
     -- The audit sheet's direction is not read: it says Outbound on Referral and Ads too.
+    -- "SDR-Others" is not the SDR team: the sheet uses it for Piyush's own outreach,
+    -- Pranesh's calls and champions who changed jobs (Ayush, 2026-11-08: SDRs only for
+    -- now), and for Muni and Suman's ABM, whom it names. AI SDR's bookings stay outreach.
     CASE
       WHEN dm.stated_sdr IS NOT NULL OR dm.campaign_id IS NOT NULL THEN TRUE
       WHEN form.sdr IS NOT NULL THEN TRUE
       WHEN form.not_sdr THEN FALSE
-      ELSE COALESCE(dm.sdr_name IS NOT NULL OR dm.channel ILIKE 'sdr%', FALSE)
+      ELSE COALESCE(dm.sdr_name IS NOT NULL OR lower(btrim(dm.channel)) = 'sdr' OR dm.source_of_meeting ILIKE 'ai sdr', FALSE)
     END AS sdr_booked,
+    COALESCE(lower(btrim(dm.channel)) = 'sdr' OR dm.source_of_meeting ILIKE 'ai sdr', FALSE) AS sdr_team,
     COALESCE(form.not_sdr, FALSE) AS form_says_other
   FROM dash_meetings dm
   LEFT JOIN dash_company_domains cd ON cd.domain = dm.company_domain
@@ -430,7 +438,7 @@ SELECT
   CASE WHEN m.sdr_booked THEN COALESCE(oc.theme, a.theme) END        AS theme,
   -- An SDR's own statement outranks the source's guess at who booked it.
   CASE WHEN m.form_says_other AND m.stated_sdr IS NULL THEN NULL ELSE COALESCE(m.stated_sdr, m.form_sdr, m.sdr_name,
-           CASE WHEN m.stated_campaign_id IS NOT NULL OR m.channel ILIKE 'sdr%'
+           CASE WHEN m.stated_campaign_id IS NOT NULL OR m.sdr_team
                 THEN COALESCE(oc.sdr, a.sdr) END) END             AS attributed_sdr,
   -- The outreach a flagged meeting followed, for its badge and the review list.
   CASE WHEN (NOT m.sdr_booked
