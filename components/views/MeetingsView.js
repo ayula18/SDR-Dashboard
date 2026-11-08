@@ -61,6 +61,8 @@ export default function MeetingsView() {
 
       {data && (
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
+          <MeetingEntry meetings={data.meetings} unclaimed={data.unclaimed} onSaved={reload} />
+
           <div className="tiles">
             <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
             <StatTile label="Rescheduled" value={fmtInt(totals.rescheduled)} note={totals.upcoming ? `${fmtInt(totals.upcoming)} still ahead` : 'Moved to a later slot'} />
@@ -92,8 +94,6 @@ export default function MeetingsView() {
             />
             <MeetingBars title="Open source" rows={data.byOssType} label="key" />
           </div>
-
-          <MeetingEntry meetings={data.meetings} unclaimed={data.unclaimed} onSaved={reload} />
 
           <Card className="flush" title="SDR-booked meetings" subtitle="Most recent first.">
             <DataTable
