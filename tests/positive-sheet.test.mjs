@@ -288,6 +288,15 @@ describe('the waterfall: an SDR booking nobody logged is a positive, once', () =
     assert.deepEqual(run([m], [], [fundraise, ahmed]).map(b => [b.sdr, b.campaignId]), [['Ahmed', 'ahmed']]);
   });
 
+  test('where the meeting credit found its source in evidence, the positive goes with the meeting', () => {
+    const reply = { day: '2026-10-05', positive: true, negative: false, campaign: 'ahmed-ref' };
+    const ahmed = { ...tba, email: 'justin@signalwire.com', campaignId: 'ahmed', campaignRef: 'ahmed-ref', sdr: 'Ahmed', replies: [reply] };
+    const fromPost = { ...meeting, sdr: 'Ahmed', campaignId: 'ahmed-li', channel: 'linkedin', whereRung: 'post', domain: 'signalwire.com' };
+    assert.deepEqual(run([fromPost], [], [ahmed]).map(b => [b.campaignId, b.channel]), [['ahmed-li', 'linkedin']], 'the LinkedIn chat on the form, not an email reply');
+    const call = { ...meeting, sdr: 'Suman', campaignId: null, channel: 'call', whereRung: 'post', domain: 'smallstep.com' };
+    assert.deepEqual(run([call], [], []).map(b => [b.sdr, b.channel]), [['Suman', 'call']], 'a Nooks call adds its positive on Call');
+  });
+
   test('someone with no lead there still dates the row and shows their words, with no credit', () => {
     const chirag = { channel: 'email', email: 'chirag@otpless.com', name: null, excluded: false, fromSheet: true, replies: [{ day: '2026-10-10', positive: true, negative: false }] };
     const [b] = run([meeting], [], [chirag]);

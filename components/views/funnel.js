@@ -70,7 +70,7 @@ export function comparedPhrase(grain, periods) {
   return `${name(current)} against ${name(previous).replace('Week', 'week')}, ${last}.`;
 }
 
-const noMeetingCampaign = n => `${fmtInt(n)} ${n === 1 ? 'meeting' : 'meetings'} SDRs booked had no campaign behind ${n === 1 ? 'it' : 'them'}, so neither channel counts ${n === 1 ? 'it' : 'them'} here.`;
+const noMeetingCampaign = n => `${fmtInt(n)} ${n === 1 ? 'meeting' : 'meetings'} SDRs booked ${n === 1 ? 'has' : 'have'} no channel yet (set on Meeting checks), or ${n === 1 ? 'was a call' : 'were calls'}, so neither channel counts ${n === 1 ? 'it' : 'them'} here.`;
 
 function ComparisonTable({ channel, grain, periods, previous, current, who, openOutcomes }) {
   const heading = period => fmtPeriod(grain, period, { long: true });
@@ -113,7 +113,8 @@ export function OverviewComparison({ channel, openOutcomes }) {
   const who = { sdr: apiParams.sdr, program: apiParams.program, theme: apiParams.theme };
   // The last answer stays on screen, dimmed, until the next one arrives.
   const ready = data?.periods.length === 2;
-  const unplaced = ready ? data.everyone[0].unplacedMeetings + data.everyone[1].unplacedMeetings : 0;
+  // Neither card holds a call (no Call card yet) or a meeting with no channel yet.
+  const unplaced = ready ? [0, 1].reduce((total, i) => total + data.everyone[i].unplacedMeetings + data.everyone[i].callMeetings, 0) : 0;
 
   return (
     <section className={refreshing ? 'is-refreshing' : undefined} aria-label="Day, week and month comparison">

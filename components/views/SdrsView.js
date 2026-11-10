@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { fmtInt, fmtPeriod } from '@/lib/client/format';
 import { useApi } from '@/lib/client/use-api';
@@ -13,7 +14,7 @@ import Delta from '../ui/Delta';
 import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import { Person } from '../ui/Person';
-import { ErrorState, LoadingBlock } from '../ui/States';
+import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SERIES, SyncStatus, pctChange, sdrHref } from './common';
 import { DEFS } from './definitions';
@@ -21,7 +22,9 @@ import { COMPARISONS, ComparisonButtons, FUNNEL, comparedPhrase, metricLabel, pe
 import { useOutcomes } from './outcomes';
 import { ChannelToggle } from './program';
 
-const CHANNELS = [['email', 'Email'], ['linkedin', 'LinkedIn']];
+// Call has no pipeline yet (Ayush, 2026-11-10): the button is there, its cards come later.
+// Call meetings and positives already count in the Overview totals.
+const CHANNELS = [['email', 'Email'], ['linkedin', 'LinkedIn'], ['call', 'Call']];
 const TOTAL = 'Total';
 
 const boardMetrics = channel => FUNNEL[channel].filter(m => m.board);
@@ -53,10 +56,11 @@ function boardFootnote(data, channel, openOutcomes) {
               sdr: data.sdrs.map(s => s.name).join(','),
               from: data.range.from,
               to: data.range.to,
-              title: 'Meetings with no campaign behind them',
+              title: 'Meetings with no channel yet',
             })}
           />
-          {` ${count === 1 ? 'meeting' : 'meetings'} booked in these dates had no campaign behind ${count === 1 ? 'it' : 'them'}, so neither channel counts ${count === 1 ? 'it' : 'them'}: ${unplaced.map(s => `${s.name} ${fmtInt(s.unplacedMeetings)}`).join(', ')}.`}
+          {` ${count === 1 ? 'meeting' : 'meetings'} booked in these dates ${count === 1 ? 'has' : 'have'} no channel yet, so no channel counts ${count === 1 ? 'it' : 'them'}: ${unplaced.map(s => `${s.name} ${fmtInt(s.unplacedMeetings)}`).join(', ')}. Set ${count === 1 ? 'its' : 'their'} channel on `}
+          <Link href="/checks">Meeting checks</Link>.
         </>
       )}
     </>
@@ -211,7 +215,7 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
 export default function SdrsView() {
   const { apiParams, get, setParams } = useFilters();
   const withFilters = useLinkWithFilters();
-  const channel = get('channel') === 'linkedin' ? 'linkedin' : 'email';
+  const channel = ['linkedin', 'call'].includes(get('channel')) ? get('channel') : 'email';
   const params = useMemo(() => {
     const { program, theme, ...rest } = apiParams;
     return rest;
@@ -219,7 +223,7 @@ export default function SdrsView() {
   const { data, error, loading, refreshing, reload } = useApi('/api/metrics/sdrs', params);
   const { openOutcomes, outcomesPanel } = useOutcomes();
 
-  const metrics = boardMetrics(channel);
+  const metrics = channel === 'call' ? [] : boardMetrics(channel);
   const channelName = channel === 'email' ? 'Email' : 'LinkedIn';
   const count = (r, m) => {
     const who = r.name === TOTAL ? `All ${data.sdrs.length} SDRs` : r.name;
@@ -272,9 +276,15 @@ export default function SdrsView() {
       />
       <WarningsBanner />
       {error && <ErrorState error={error} onRetry={reload} />}
-      {loading && <LoadingBlock />}
+      {loading && channel !== 'call' && <LoadingBlock />}
 
-      {data && (
+      {channel === 'call' && (
+        <Card title="Call" subtitle="Cold calling has no pipeline in the dashboard yet, so there are no call numbers to show here. Meetings booked on a call, and their positives, already count in the Overview's totals.">
+          <EmptyState title="Coming soon">Call volumes, positives and meetings per SDR will appear here once cold calling is connected.</EmptyState>
+        </Card>
+      )}
+
+      {data && channel !== 'call' && (
         <Card
           className={`flush${refreshing ? ' is-refreshing' : ''}`}
           title={channel === 'email' ? 'Email' : 'LinkedIn'}
@@ -293,7 +303,7 @@ export default function SdrsView() {
         </Card>
       )}
 
-      <SdrTrend channel={channel} params={params} withFilters={withFilters} openOutcomes={openOutcomes} />
+      {channel !== 'call' && <SdrTrend channel={channel} params={params} withFilters={withFilters} openOutcomes={openOutcomes} />}
       {outcomesPanel}
     </div>
   );

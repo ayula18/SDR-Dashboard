@@ -89,13 +89,16 @@ const cluster = (rows, forms = [], posts = []) => {
   return { ...c, forms, posts };
 };
 
-test('who booked: their own word, then the form, then the audit sheet, then the alert', () => {
-  const sheet = row('s', 'acme.com', '2026-08-01', { source: 'sheet', sdrName: 'Muni' });
+test('who booked: their own word, then the form, then the meetings sheet, then the alert', () => {
+  const sheet = row('s', 'acme.com', '2026-08-01', { source: 'sheet', sdrName: 'Muni', sourceOfMeeting: 'Muni', channel: 'SDR-Others' });
   assert.deepEqual(whoBooked(cluster([{ ...sheet, statedSdr: 'Rama' }], [{ sdr: 'Akhil' }])).sdrs, [{ name: 'Rama', share: 1 }]);
+  assert.equal(whoBooked(cluster([{ ...sheet, statedNotSdr: true }], [{ sdr: 'Akhil' }])).by, 'stated', 'marked not an SDR meeting');
   assert.deepEqual(whoBooked(cluster([sheet], [{ sdr: 'Akhil' }])), { sdrs: [{ name: 'Akhil', share: 1 }], by: 'form', sure: 'sure' }, 'form over sheet, no split (cypress.io)');
-  assert.deepEqual(whoBooked(cluster([sheet])), { sdrs: [{ name: 'Muni', share: 1 }], by: 'sheet', sure: 'likely' });
+  assert.deepEqual(whoBooked(cluster([sheet])), { sdrs: [{ name: 'Muni', share: 1 }], by: 'sheet', sure: 'sure' }, 'the sheet is the second truth');
   assert.equal(whoBooked(cluster([sheet], [{ sdr: null, notSdr: true, ownerRaw: 'Ads' }])).other, 'Ads');
   assert.deepEqual(whoBooked(cluster([sheet], [{ sdr: 'Akhil' }, { sdr: 'Dheeraj' }])).sdrs.map(s => s.share), [0.5, 0.5], 'two forms, two people');
+  const arnica = [row('a', 'arnica.io', '2026-10-20', { source: 'sheet', sdrName: 'Ahmed', sourceOfMeeting: 'Ahmed', channel: 'SDR' }), row('h', 'arnica.io', '2026-10-26', { source: 'hubspot' })];
+  assert.deepEqual(whoBooked(cluster(arnica)).sdrs, [{ name: 'Ahmed', share: 1 }], 'booked on the website after his email: no form, and the sheet has it under him');
 });
 
 test('half each only where the audit sheet itself splits the meeting', () => {
@@ -106,14 +109,17 @@ test('half each only where the audit sheet itself splits the meeting', () => {
   assert.deepEqual(marketing.sdrs, [{ name: 'Akhil', share: 1 }], 'the other half went to marketing: the SDR takes it');
 });
 
-test('which team a booking came through is the best record\'s word', () => {
-  const alert = row('a', 'chronicle.software', '2026-08-25', { channel: 'SDR' });
-  assert.equal(whoBooked(cluster([alert, row('s', 'chronicle.software', '2026-08-25', { source: 'sheet', channel: 'Inbound' })])), null, 'the audit says Inbound');
-  assert.equal(whoBooked(cluster([alert])).unnamed, true, 'the SDR team, nobody named');
-  assert.equal(whoBooked(cluster([alert], [{ sdr: null, ownerRaw: null }])).unnamed, true, 'a blank form says nothing');
-  assert.equal(whoBooked(cluster([row('r', 'x.com', '2026-08-31', { channel: 'Inbound' })], [{ sdr: null, ownerRaw: 'AI SDR' }])).unnamed, true, '"AI SDR" on the form');
+test('the sheet says who when the form does not; the SDR team\'s link alone is a check, never a guess', () => {
+  const alert = row('a', 'chronicle.software', '2026-08-25', { channel: 'SDR', sourceOfMeeting: 'SDR' });
+  assert.deepEqual(whoBooked(cluster([alert, row('s', 'chronicle.software', '2026-08-25', { source: 'sheet', channel: 'Inbound', sourceOfMeeting: 'Inbound' })])),
+    { other: 'Inbound', by: 'sheet', sure: 'sure' }, 'the audit says Inbound');
+  assert.equal(whoBooked(cluster([alert])).check, true, 'the SDR team, nobody named, no form, no audit row');
+  assert.equal(whoBooked(cluster([alert], [{ sdr: null, ownerRaw: null }])).check, true, 'a blank form says nothing');
+  assert.equal(whoBooked(cluster([row('r', 'x.com', '2026-08-31', { channel: 'Inbound' })], [{ sdr: null, ownerRaw: 'AI SDR' }])).aiSdr, true, '"AI SDR" on the form');
+  assert.equal(whoBooked(cluster([row('s', 'cyfirma.com', '2026-10-12', { source: 'sheet', sourceOfMeeting: 'AI SDR', channel: 'SDR-Others' })])).aiSdr, true, '"AI SDR" on the sheet');
+  assert.equal(whoBooked(cluster([row('h', 'x.com', '2026-08-31', { source: 'hubspot' })])), null, 'HubSpot with no owner says nothing');
   const moved = [row('m', null, '2026-08-24', { channel: 'Referral', supersededBy: 'n' }), row('n', null, '2026-08-31', { channel: 'SDR' })];
-  assert.equal(whoBooked({ ...clusterMeetings(moved)[0], forms: [], posts: [] }).unnamed, true, 'a moved booking speaks through its new slot');
+  assert.equal(whoBooked({ ...clusterMeetings(moved)[0], forms: [], posts: [] }).check, true, 'a moved booking speaks through its new slot');
 });
 
 const campaigns = new Map([
@@ -216,15 +222,29 @@ test('every record gets its credit and its reason; repeats and moves point at th
   assert.deepEqual([by.w2.mergedInto, by.w2.sdrs[0].name, by.w1.mergedInto, by.w1.sdrs[0].name], [null, 'Rama', null, 'Rama'], 'the moved slot keeps its own row, with the credit');
 });
 
-test('"SDR-Others" is outbound outside the SDR team unless it names someone on it', () => {
+test('"SDR-Others" on the sheet is outbound outside the SDR team unless it names someone on it', () => {
   const others = (sourceOfMeeting, sdrName = null) => cluster([row('s', 'deepgram.com', '2026-09-26', { source: 'sheet', channel: 'SDR-Others', sourceOfMeeting, sdrName })]);
-  assert.deepEqual(whoBooked(others('Piyush')), { other: 'Piyush', by: 'sheet', sure: 'likely' }, "Piyush's own outreach");
+  assert.deepEqual(whoBooked(others('Piyush')), { other: 'Piyush', by: 'sheet', sure: 'sure' }, "Piyush's own outreach");
   assert.equal(whoBooked(others('Pranesh')).other, 'Pranesh');
   assert.equal(whoBooked(others('Champion changed jobs')).other, 'Champion changed jobs');
   assert.deepEqual(whoBooked(others('Suman', 'Suman')).sdrs, [{ name: 'Suman', share: 1 }], "Suman's ABM");
-  assert.equal(whoBooked(others('AI SDR')).unnamed, true, "AI SDR's booking is outreach");
+  assert.equal(whoBooked(others('AI SDR')).aiSdr, true, "AI SDR's booking is outreach");
   const credit = creditMeetings({ rows: [row('s', 'deepgram.com', '2026-09-26', { source: 'sheet', channel: 'SDR-Others', sourceOfMeeting: 'Piyush' })], forms: [], posts: [], leadsByName: new Map(), ...ctx() });
   assert.deepEqual([credit[0].bookingBy, credit[0].reason], ['other', 'The audit sheet says Piyush booked it, outside the SDR team.']);
+});
+
+test('an answer on Meeting checks outranks every source: who, the channel, or not an SDR meeting', () => {
+  const base = { forms: [], posts: [], leadsByName: new Map(), ...ctx() };
+  const alertOnly = row('a', 'novyxtech.com', '2026-08-15', { channel: 'SDR', sourceOfMeeting: 'SDR' });
+  const [check] = creditMeetings({ ...base, rows: [alertOnly] });
+  assert.equal(check.bookingBy, 'unknown', 'counted nowhere until answered');
+  assert.match(check.reason, /^Needs a check: /);
+  const [answered] = creditMeetings({ ...base, rows: [{ ...alertOnly, statedSdr: 'Rama', statedChannel: 'linkedin' }] });
+  assert.deepEqual([answered.bookingBy, answered.sdrs, answered.channel, answered.where.sure], ['sdr', [{ name: 'Rama', share: 1 }], 'linkedin', 'sure']);
+  const [call] = creditMeetings({ ...base, rows: [{ ...alertOnly, statedSdr: 'Rama', statedChannel: 'call' }] });
+  assert.deepEqual([call.channel, call.campaignId], ['call', null]);
+  const [no] = creditMeetings({ ...base, rows: [{ ...row('s', 'acme.com', '2026-08-01', { source: 'sheet', sdrName: 'Akhil', sourceOfMeeting: 'Akhil' }), statedNotSdr: true }] });
+  assert.deepEqual([no.bookingBy, no.reason], ['other', 'Marked on Meeting checks: it is not an SDR meeting.']);
 });
 
 test('a booking with no company is named from its invitee', () => {

@@ -29,10 +29,11 @@ test('only a reply near the meeting at that company counts as leading to it', ()
 
 test('the list asks for what the number counted, and refuses anything else', async () => {
   await assert.rejects(getOutcomes({ from: '2026-10-01', toExclusive: '2026-10-02' }, { kind: 'replies' }), /positive or meetings/);
-  await assert.rejects(getOutcomes({ from: '2026-10-01', toExclusive: '2026-10-02' }, { kind: 'positive', channel: 'none' }), /email or linkedin/);
+  await assert.rejects(getOutcomes({ from: '2026-10-01', toExclusive: '2026-10-02' }, { kind: 'positive', channel: 'none' }), /email, linkedin or call/);
+  await assert.rejects(getOutcomes({ from: '2026-10-01', toExclusive: '2026-10-02' }, { kind: 'meetings', channel: 'fax' }), /email, linkedin, call or none/);
   const source = read('lib/metrics/outcomes.js');
   assert.match(source, /positiveResponses\(filters/, 'positives come from the list the cards agree with');
-  assert.match(source, /listMeetings\(filters, \{ \.\.\.range, platform: PLATFORM\[channel\] \|\| null, withRescheduled: false/, 'meetings as the funnel counts them: no moved slots');
+  assert.match(source, /listMeetings\(filters, \{ \.\.\.range, platform: MEETING_CHANNEL\[channel\] \|\| null, withRescheduled: false/, 'meetings as the funnel counts them: no moved slots, by the credit\'s channel');
 });
 
 test('Positive and Meetings numbers open their names on the SDR page, the Overview and program pages', () => {

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  CalendarCheck, HeartPulse, Layers, LayoutDashboard, Lightbulb, LogOut, Megaphone, Radar, TrendingUp, Users,
+  CalendarCheck, ClipboardCheck, HeartPulse, Layers, LayoutDashboard, Lightbulb, LogOut, Megaphone, Radar, TrendingUp, Users,
 } from 'lucide-react';
 import { endSession } from '@/lib/auth-actions';
 import { useDashboard } from '@/lib/client/dashboard-context';
@@ -30,6 +30,7 @@ const GROUPS = [
     label: 'Outcomes',
     items: [
       { label: 'Meetings', href: '/meetings', icon: CalendarCheck },
+      { label: 'Meeting checks', href: '/checks', icon: ClipboardCheck },
       { label: "What's working", href: '/insights', icon: Lightbulb },
       { label: 'Coverage', href: '/coverage', icon: Radar },
     ],

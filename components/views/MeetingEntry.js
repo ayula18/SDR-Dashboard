@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useState } from 'react';
 import { Check, LoaderCircle, Plus } from 'lucide-react';
 import { useDashboard } from '@/lib/client/dashboard-context';
 import { fmtDate } from '@/lib/client/format';
@@ -51,28 +52,17 @@ function CampaignField({ value, onChange, campaigns, onFocus, id }) {
 }
 
 /**
- * A meeting the automated sources never saw, and attribution for ones they did.
- *
- * Both exist because the dashboard cannot always know: bookings come from a
- * Slack alert that carries no SDR, HubSpot meeting objects carry no owner, and
- * attribution is inferred from outreach to that company in the 180 days before
- * — which finds nothing when the outreach was never recorded. The person who
- * booked it knows. Everything saved here keeps who said so.
+ * A meeting the automated sources never saw. Saved against the person's name, and the
+ * first rung of the meeting credit. Answers about meetings the sources did see (who,
+ * channel, campaign) are given on Meeting checks (ChecksView).
  */
-export default function MeetingEntry({ meetings = [], unclaimed = [], onSaved }) {
+export default function MeetingEntry({ onSaved }) {
   const { meta } = useDashboard();
   const { campaigns, loadCampaigns } = useCampaigns();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ domain: '', meetingDate: today(), campaignId: '', sdrName: '', channel: 'SDR', direction: 'Outbound', note: '' });
   const [state, setState] = useState({ busy: false, saved: null, error: null });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  // SDR-booked meetings no recorded outreach explains, then bookings no source
-  // names anyone on: claiming one with a campaign makes it an SDR meeting.
-  const unattributed = useMemo(
-    () => [...meetings.filter(m => !m.campaignId && !m.rescheduled), ...unclaimed].slice(0, 25),
-    [meetings, unclaimed]
-  );
 
   const submit = async event => {
     event.preventDefault();
@@ -129,55 +119,10 @@ export default function MeetingEntry({ meetings = [], unclaimed = [], onSaved })
         )}
       </Card>
 
-      {unattributed.length > 0 && (
-        <Card
-          title="Meetings with no campaign"
-          subtitle="SDR-booked meetings the recorded outreach doesn't explain, and bookings no source names anyone on. The second kind count nowhere until someone says which campaign earned them."
-        >
-          <ul className="changes-list">
-            {unattributed.map(m => (
-              <AttributeRow key={m.id} meeting={m} campaigns={campaigns} onFocus={loadCampaigns} onSaved={onSaved} />
-            ))}
-          </ul>
-        </Card>
-      )}
+      <p className="card-foot">
+        A booking nobody is named on, or with no channel or an unsure campaign, is answered on <Link href="/checks">Meeting checks</Link>.
+      </p>
     </>
   );
 }
 
-function AttributeRow({ meeting, campaigns, onFocus, onSaved }) {
-  const [campaignId, setCampaignId] = useState('');
-  const [state, setState] = useState({ busy: false, done: false, error: null });
-
-  const save = async () => {
-    if (!campaignId) return;
-    setState({ busy: true, done: false, error: null });
-    try {
-      await apiFetch('/api/meetings/manual', { method: 'PATCH', body: { id: meeting.id, campaignId } });
-      clearApiCache();
-      setState({ busy: false, done: true, error: null });
-      onSaved?.();
-    } catch (error) {
-      setState({ busy: false, done: false, error });
-    }
-  };
-
-  return (
-    <li style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span className="company-name" style={{ minWidth: 180 }}>{meeting.company || meeting.domain}</span>
-      <span className="cell-sub">{fmtDate(meeting.date)}{meeting.channel ? ` · ${meeting.channel}` : ''}</span>
-      {state.done ? (
-        <span className="tile-foot-text"><Check size={13} aria-hidden="true" /> Attributed</span>
-      ) : (
-        <>
-          <CampaignField id={`attr-${meeting.id}`} value={campaignId} onChange={setCampaignId}
-            campaigns={campaigns} onFocus={onFocus} />
-          <button type="button" className="btn" onClick={save} disabled={state.busy || !campaignId}>
-            {state.busy ? <LoaderCircle size={14} className="spin" aria-hidden="true" /> : 'Attribute'}
-          </button>
-        </>
-      )}
-      {state.error && <span className="inline-error" role="alert">{state.error.message}</span>}
-    </li>
-  );
-}

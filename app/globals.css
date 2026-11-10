@@ -1279,6 +1279,12 @@ html, body {
 .changes-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--text-secondary); }
 .changes-list li { display: inline-flex; align-items: center; gap: 6px; }
 
+/* Meeting checks: one meeting a row, its answer under it */
+.checks-list { list-style: none; margin: 0; padding: 0; }
+.checks-list > li { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 0; border-top: 1px solid var(--border); }
+.checks-list > li:first-child { border-top: 0; padding-top: 4px; }
+.checks-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
 /* Stat tiles */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 .tile { position: relative; display: flex; flex-direction: column; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px 12px; min-width: 0; overflow: hidden; }

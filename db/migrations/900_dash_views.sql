@@ -380,6 +380,7 @@ WITH m AS (
     dm.evidence_note, dm.evidence_at, dm.superseded_by, dm.booking_qualified,
     dm.qualification_note, dm.booking_action, dm.booked_via, dm.heard_from,
     dm.campaign_id AS stated_campaign_id, dm.created_by, dm.entry_note, dm.stated_sdr,
+    dm.stated_channel, dm.stated_not_sdr,
     -- The day the form's deal was made, when that can be the booking (028): it dates a
     -- booked positive. Who booked is the credit's, not this.
     form.booked_on AS form_booked_on,

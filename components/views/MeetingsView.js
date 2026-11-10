@@ -47,7 +47,7 @@ export default function MeetingsView() {
       <PageHeader
         title="Meetings"
         description={'Every meeting SDR outreach booked, by meeting date, with the SDR and campaign it\'s credited to. AE, inbound, referral and marketing meetings are left out. '
-          + 'Bookings come from the audit sheet up to September, the booking bot\'s Slack alert, the SDR form on HubSpot deals and, where none of those has it, HubSpot\'s meetings.'}
+          + 'Who booked it is the HubSpot form\'s word, then the meetings audit sheet\'s; bookings also come from the booking bot\'s Slack alert and HubSpot\'s meetings. Anything unsettled is on Meeting checks.'}
         meta={<SyncStatus />}
       />
       <FilterBar range={data?.range}>
@@ -61,7 +61,7 @@ export default function MeetingsView() {
 
       {data && (
         <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
-          <MeetingEntry meetings={data.meetings} unclaimed={data.unclaimed} onSaved={reload} />
+          <MeetingEntry onSaved={reload} />
 
           <div className="tiles">
             <StatTile label="Meetings" value={fmtInt(totals.meetings)} change={totals.change.meetings} previous={fmtInt(totals.previous.meetings)} />
