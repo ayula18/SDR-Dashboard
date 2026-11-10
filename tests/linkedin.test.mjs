@@ -55,7 +55,8 @@ test('views read only dash_* tables, so they can never block a migration in the 
   const cteNames = new Set([...sql.matchAll(/\b([a-z_]+)\s+AS\s*\(/gi)].map(m => m[1].toLowerCase()));
   const sources = [...sql.matchAll(/\b(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*)/gi)].map(m => m[1].toLowerCase());
   assert.ok(sources.length > 5);
-  for (const name of sources) assert.ok(name.startsWith('dash_') || cteNames.has(name) || name === 'lateral', `${name} is not a dash_ table`);
+  // unnest is a function over a dash_ row's own arrays (a meeting's credited SDRs), not a table.
+  for (const name of sources) assert.ok(name.startsWith('dash_') || cteNames.has(name) || name === 'lateral' || name === 'unnest', `${name} is not a dash_ table`);
 });
 
 test('the LinkedIn view ranks best replies in REPLY_RANK order', () => {
@@ -151,7 +152,8 @@ test('views: our own domains and the canonical map are applied where nothing can
   // it in live; the LinkedIn side reads it from the column the sync job stamped.
   for (const table of ['dash_company_domains cd']) assert.ok(views.includes(table), table);
   assert.ok(views.includes('COALESCE(cd.canonical_domain, l.company_domain) AS company_domain'));
-  assert.ok(views.includes('COALESCE(cd.canonical_domain, dm.company_domain) AS company_domain'));
+  // Meetings: the credit's company first, which names a booking that came without one.
+  assert.ok(views.includes('COALESCE(cr.company_domain, cd.canonical_domain, dm.company_domain) AS company_domain'));
 });
 
 test('the LinkedIn closure is read from a bare column, never recomputed in the view', () => {

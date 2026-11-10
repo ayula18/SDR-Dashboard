@@ -10,6 +10,9 @@ import ConversationPanel from './ConversationPanel';
 
 const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 const CHANNEL = { email: 'Email', linkedin: 'LinkedIn' };
+// A meeting with no campaign still has the channel the credit found: a Nooks call, a
+// chat on Piyush's own LinkedIn, a reply to a broadcast.
+const NO_CAMPAIGN = { email: 'Email, no campaign', linkedin: 'LinkedIn, no campaign', call: 'Call, no campaign' };
 
 function said(row) {
   if (row.quote) return <span className="company-list-quote">“{row.quote}”</span>;
@@ -37,9 +40,10 @@ function MeetingRow({ row }) {
         <span className="company-name">{row.company || 'Company not named'}</span>
         <span className="cell-sub nowrap">{fmtDate(row.at, { year: true })}</span>
       </span>
-      <span className="cell-sub">{[row.sdr, row.campaign || 'No campaign match', MEETING_STATUS[row.outcome]].filter(Boolean).join(', ')}</span>
+      <span className="cell-sub">{[row.sdr, row.campaign || NO_CAMPAIGN[row.channel] || 'No campaign', MEETING_STATUS[row.outcome]].filter(Boolean).join(', ')}</span>
       {row.name && <span className="cell-sub"><strong>{row.name}</strong></span>}
       {said(row)}
+      {row.reason && <span className="cell-sub muted">Why: {row.reason}</span>}
     </>
   );
 }
@@ -50,7 +54,8 @@ function OutcomeList({ query, onOpen, onClose }) {
   const rows = data?.rows || [];
   const meetings = query.kind === 'meetings';
   const Row = meetings ? MeetingRow : PositiveRow;
-  const count = meetings ? plural(rows.length, 'meeting') : plural(rows.length, 'person', 'people');
+  // A meeting split between two SDRs is half for each, so the count is the shares, as the number that opened it.
+  const count = meetings ? plural(rows.reduce((total, r) => total + (r.share ?? 1), 0), 'meeting') : plural(rows.length, 'person', 'people');
   return (
     <Drawer
       open

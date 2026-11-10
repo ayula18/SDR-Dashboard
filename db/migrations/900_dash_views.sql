@@ -347,25 +347,30 @@ CROSS JOIN LATERAL (
 ) label
 WHERE NOT base.internal;
 
--- Meetings from four sources, and what outreach may claim of them.
+-- Meetings from five sources, each with the credit the meeting-credit job decided.
+--   'sheet'    the meetings audit, Combined QMeeings Booked-2026, read daily
 --   'slack'    the booking bot's alert, in the archive the morning after it is booked
---   'sheet'    the qualified-meetings audit, which alone carries qualified and deal value
 --   'form'     the SDR form on a HubSpot deal, naming an SDR, where no other source has it
 --   'hubspot'  a first meeting HubSpot knows about that none of the others has
--- When two describe the same company within three days, the sheet's row is kept,
--- so a meeting is never counted twice.
+--   'manual'   an SDR's own entry on the Meetings page
 --
--- WHY attribution is split (Ayush, 2026-10-27): a meeting booked through the website
--- at a company a campaign had emailed was showing as that campaign's, and that SDR's,
--- meeting. Outreach may only claim a meeting an SDR actually booked; anything else
--- that followed recent outreach is flagged beside it, never counted as it.
+-- WHO BOOKED IT AND WHERE IT CAME FROM are decided once, in lib/outreach/meeting-credit.js,
+-- and stored in dash_meeting_credit (032) by the meeting-credit job (Ayush, 2026-11-08:
+-- "where we are sure, like the form, treat it as truth; only where we are not very sure
+-- put our waterfall model"). This view only reads that decision. It used to make it here,
+-- and stamped the form's SDR on every record within 14 days, merged records only when an
+-- alert sat within 3 days of an audit row, and took whichever campaign last reached the
+-- company, broadcasts too: prism-ml, Extend and Harness each listed twice, and Akhil's
+-- harness.io meeting on the KubeCon invite campaign (2026-11-10).
+--
+-- One row per credited SDR: `share` is 1, or 0.5 each where the audit sheet splits a meeting
+-- between two SDRs, so a count of meetings is sum(share), never count(*) (MEETINGS in
+-- lib/metrics/sql.js). A record that is a repeat of another (merged_into) is left out; a
+-- booking that moved keeps its row, rescheduled, with the credit of the meeting.
 CREATE VIEW dash_v_meetings AS
 WITH m AS (
-  -- Canonical company domain, so a meeting lands on the same key as the outreach
-  -- that earned it: a meeting at tray.io could otherwise never be attributed to
-  -- the campaign that emailed tray.ai.
   SELECT
-    COALESCE(cd.canonical_domain, dm.company_domain) AS company_domain,
+    COALESCE(cr.company_domain, cd.canonical_domain, dm.company_domain) AS company_domain,
     dm.company_domain AS company_domain_raw,
     (idom.domain IS NOT NULL) AS internal,
     dm.id, dm.company_raw, dm.meeting_date, dm.week_start, dm.month_start, dm.source_of_meeting,
@@ -375,141 +380,54 @@ WITH m AS (
     dm.evidence_note, dm.evidence_at, dm.superseded_by, dm.booking_qualified,
     dm.qualification_note, dm.booking_action, dm.booked_via, dm.heard_from,
     dm.campaign_id AS stated_campaign_id, dm.created_by, dm.entry_note, dm.stated_sdr,
-    form.sdr AS form_sdr, form.owner_raw AS form_owner, form.booked_on AS form_booked_on,
-    -- DID AN SDR BOOK IT, decided here once. The waterfall (Ayush, 2026-11-05):
-    --   1 the SDR said so themselves, on the meetings page
-    --   2 the SDR form on the HubSpot deal names a person
-    --   3 that form names something else: Ads, Inbound, Referral, Ecosystem
-    --   4 the audit sheet or booking alert names an SDR, or calls the channel SDR
-    -- The audit sheet's direction is not read: it says Outbound on Referral and Ads too.
-    -- "SDR-Others" is not the SDR team: the sheet uses it for Piyush's own outreach,
-    -- Pranesh's calls and champions who changed jobs (Ayush, 2026-11-08: SDRs only for
-    -- now), and for Muni and Suman's ABM, whom it names. AI SDR's bookings stay outreach.
-    CASE
-      WHEN dm.stated_sdr IS NOT NULL OR dm.campaign_id IS NOT NULL THEN TRUE
-      WHEN form.sdr IS NOT NULL THEN TRUE
-      WHEN form.not_sdr THEN FALSE
-      ELSE COALESCE(dm.sdr_name IS NOT NULL OR lower(btrim(dm.channel)) = 'sdr' OR dm.source_of_meeting ILIKE 'ai sdr', FALSE)
-    END AS sdr_booked,
-    COALESCE(lower(btrim(dm.channel)) = 'sdr' OR dm.source_of_meeting ILIKE 'ai sdr', FALSE) AS sdr_team,
-    COALESCE(form.not_sdr, FALSE) AS form_says_other
+    -- The day the form's deal was made, when that can be the booking (028): it dates a
+    -- booked positive. Who booked is the credit's, not this.
+    form.booked_on AS form_booked_on,
+    cr.merged_into, cr.sdrs, cr.shares, cr.campaign_id AS credit_campaign_id,
+    COALESCE(cr.booking_by, 'unknown') AS booking_by,
+    cr.channel AS outreach_channel, cr.who_by, cr.who_sure, cr.where_rung, cr.where_sure,
+    cr.person AS credit_person, cr.reason AS credit_reason
   FROM dash_meetings dm
   LEFT JOIN dash_company_domains cd ON cd.domain = dm.company_domain
-  LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cd.canonical_domain, dm.company_domain)
-  -- The form's date can sit a little off the booking when a meeting moves, so the same
-  -- 14 days the job uses to decide a form row needs a meeting of its own (028).
+  LEFT JOIN dash_meeting_credit cr ON cr.meeting_id = dm.id
+  LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cr.company_domain, cd.canonical_domain, dm.company_domain)
   LEFT JOIN LATERAL (
-    SELECT f.sdr, f.not_sdr, f.owner_raw, f.booked_on
+    SELECT f.booked_on
       FROM dash_sdr_form f
-     WHERE f.company_domain = COALESCE(cd.canonical_domain, dm.company_domain)
+     WHERE f.company_domain = COALESCE(cr.company_domain, cd.canonical_domain, dm.company_domain)
        AND f.meeting_date BETWEEN dm.meeting_date - 14 AND dm.meeting_date + 14
-     ORDER BY (f.sdr IS NOT NULL) DESC, f.not_sdr DESC, abs(f.meeting_date - dm.meeting_date)
+     ORDER BY (f.sdr IS NOT NULL) DESC, abs(f.meeting_date - dm.meeting_date)
      LIMIT 1
   ) form ON TRUE
 )
 SELECT
   m.*,
-  -- Who booked it, which is what decides whether outreach may claim it:
-  --   sdr      an SDR did: see sdr_booked above
-  --   other    someone else did: inbound, a referral, an AE, marketing, self-serve
-  --   unknown  nothing says who: HubSpot's meeting objects carry no owner
-  CASE
-    WHEN m.sdr_booked THEN 'sdr'
-    WHEN m.channel IS NOT NULL OR m.form_says_other THEN 'other'
-    ELSE 'unknown'
-  END AS booking_by,
-  -- One definition of what outreach may claim, which every page reads:
-  --   sourced     an SDR booked it, so the campaign that reached the company owns it
-  --   influenced  it arrived another way within 30 days of us reaching that company:
-  --               flagged beside the campaign, never counted as its meeting
-  --   none        neither, so no campaign, SDR or program is named at all
-  CASE
-    WHEN m.sdr_booked THEN 'sourced'
-    WHEN (NOT m.sdr_booked
-             AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN 'influenced'
-    ELSE 'none'
-  END AS attribution,
-  -- Campaign, SDR and program name the sourced meeting only, so a page that filters
-  -- or groups by them can never count a meeting outreach did not book.
-  CASE WHEN m.sdr_booked THEN COALESCE(oc.id, a.campaign_id) END     AS campaign_id,
-  CASE WHEN m.sdr_booked THEN COALESCE(oc.name, a.campaign_name) END AS campaign_name,
-  CASE WHEN m.sdr_booked THEN COALESCE(oc.sdr, a.sdr) END            AS campaign_sdr,
-  CASE WHEN m.sdr_booked THEN COALESCE(oc.program, a.program) END    AS program,
-  CASE WHEN m.sdr_booked THEN COALESCE(oc.theme, a.theme) END        AS theme,
-  -- An SDR's own statement outranks the source's guess at who booked it.
-  CASE WHEN m.form_says_other AND m.stated_sdr IS NULL THEN NULL ELSE COALESCE(m.stated_sdr, m.form_sdr, m.sdr_name,
-           CASE WHEN m.stated_campaign_id IS NOT NULL OR m.sdr_team
-                THEN COALESCE(oc.sdr, a.sdr) END) END             AS attributed_sdr,
-  -- The outreach a flagged meeting followed, for its badge and the review list.
-  CASE WHEN (NOT m.sdr_booked
-             AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_campaign_id END   AS influenced_campaign_id,
-  CASE WHEN (NOT m.sdr_booked
-             AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_campaign_name END AS influenced_campaign_name,
-  CASE WHEN (NOT m.sdr_booked
-             AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_sdr END           AS influenced_sdr,
-  CASE WHEN (NOT m.sdr_booked
-             AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN a.recent_program END       AS influenced_program,
-  CASE WHEN (NOT m.sdr_booked
-             AND a.last_touch IS NOT NULL AND a.last_touch >= m.meeting_date - 30) THEN (m.meeting_date - a.last_touch) END AS influenced_days,
+  -- One definition of what outreach may claim, which every page reads (OUTREACH_MEETING):
+  --   sourced  an SDR booked it (booking_by 'sdr'), or AI SDR did
+  --   none     anyone else did, or nothing says who
+  CASE WHEN m.booking_by = 'sdr' THEN 'sourced' ELSE 'none' END AS attribution,
+  -- Campaign, SDR and program name an SDR's meeting only. The campaign is the outreach it
+  -- came from, never a broadcast, and can be none: a call, a referral, Piyush's own LinkedIn.
+  CASE WHEN m.booking_by = 'sdr' THEN oc.id END      AS campaign_id,
+  CASE WHEN m.booking_by = 'sdr' THEN oc.name END    AS campaign_name,
+  CASE WHEN m.booking_by = 'sdr' THEN oc.sdr END     AS campaign_sdr,
+  CASE WHEN m.booking_by = 'sdr' THEN oc.program END AS program,
+  CASE WHEN m.booking_by = 'sdr' THEN oc.theme END   AS theme,
+  CASE WHEN m.booking_by = 'sdr' THEN s.sdr END      AS attributed_sdr,
+  s.share::float                                     AS share,
   -- m.* already carries outcome, evidence_source and evidence_note, written by the
-  -- meetings-evidence job (011) from a waterfall of evidence.
-  --
-  -- Held means the prospect turned up, which is a claim something has to back: the
-  -- audit sheet, a recording with them in the room, or the pipeline moving after.
-  -- Until that job has first run, the audit sheet's own column stands in.
+  -- meetings-evidence job (011) from a waterfall of evidence. Held means the prospect
+  -- turned up, which something has to back. Until that job has first run, the audit
+  -- sheet's own column stands in.
   (COALESCE(m.outcome, CASE WHEN lower(m.happened) = 'yes' THEN 'held' END) = 'held') AS did_happen,
   -- A booking that moved keeps its row so the move is visible, but the meeting
   -- is counted once, at the slot it moved to.
   (m.superseded_by IS NOT NULL) AS rescheduled
 FROM m
-LEFT JOIN LATERAL (
-  -- One pass over the outreach that reached this company in the 180 days before the
-  -- meeting: the campaign that best explains it, and the last day anyone there was
-  -- actually reached, which is what the 30-day influence window measures.
-  SELECT
-    (array_agg(x.campaign_id   ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC))[1] AS campaign_id,
-    (array_agg(x.campaign_name ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC))[1] AS campaign_name,
-    (array_agg(x.sdr           ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC))[1] AS sdr,
-    (array_agg(x.program       ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC))[1] AS program,
-    (array_agg(x.theme         ORDER BY x.replied DESC, x.last_reply_at DESC NULLS LAST, x.reached_at DESC))[1] AS theme,
-    max(x.touched_at) FILTER (WHERE x.touched_at < m.meeting_date + 1)::date AS last_touch,
-    (array_agg(x.campaign_id   ORDER BY x.touched_at DESC) FILTER (WHERE x.touched_at >= m.meeting_date - 30 AND x.touched_at < m.meeting_date + 1))[1] AS recent_campaign_id,
-    (array_agg(x.campaign_name ORDER BY x.touched_at DESC) FILTER (WHERE x.touched_at >= m.meeting_date - 30 AND x.touched_at < m.meeting_date + 1))[1] AS recent_campaign_name,
-    (array_agg(x.sdr           ORDER BY x.touched_at DESC) FILTER (WHERE x.touched_at >= m.meeting_date - 30 AND x.touched_at < m.meeting_date + 1))[1] AS recent_sdr,
-    (array_agg(x.program       ORDER BY x.touched_at DESC) FILTER (WHERE x.touched_at >= m.meeting_date - 30 AND x.touched_at < m.meeting_date + 1))[1] AS recent_program
-    FROM (
-      SELECT l.campaign_id, c.name AS campaign_name, c.sdr, c.program, c.theme,
-             (l.reply_count > 0) AS replied, l.last_reply_at, l.created_at_src AS reached_at,
-             l.last_contact_at AS touched_at
-        FROM dash_leads l
-        JOIN dash_v_campaigns c ON c.id = l.campaign_id AND NOT c.excluded
-       -- dash_leads holds the RAW spelling and m.company_domain is canonical, so a plain
-       -- equality missed a meeting at qdrant.tech whose campaign emailed qdrant.io. Every
-       -- spelling of the company is matched, still through idx_dash_leads_domain.
-       WHERE l.company_domain IN (SELECT m.company_domain
-                                  UNION ALL
-                                  SELECT cd.domain FROM dash_company_domains cd WHERE cd.canonical_domain = m.company_domain)
-         AND l.created_at_src <  (m.meeting_date + 1)
-         AND l.created_at_src >= (m.meeting_date - 180)
-      UNION ALL
-      SELECT l.campaign_id, l.campaign_name, l.sdr, l.program, l.theme,
-             l.replied, l.last_reply_at, l.added_at,
-             COALESCE(l.last_action_at, l.added_at)
-        FROM dash_v_linkedin_leads l
-       WHERE l.company_domain = m.company_domain AND NOT l.excluded AND l.reached
-         AND l.added_at <  (m.meeting_date + 1)
-         AND l.added_at >= (m.meeting_date - 180)
-    ) x
-   WHERE m.company_domain IS NOT NULL AND m.meeting_date IS NOT NULL
-) a ON TRUE
-LEFT JOIN dash_v_campaigns oc ON oc.id = m.stated_campaign_id AND NOT oc.excluded
-WHERE NOT m.internal
-  AND (m.source <> 'slack'
-   OR NOT EXISTS (
-     SELECT 1
-       FROM m sheet
-      WHERE sheet.source = 'sheet'
-        AND sheet.company_domain IS NOT NULL
-        AND sheet.company_domain = m.company_domain
-        AND sheet.meeting_date BETWEEN m.meeting_date - 3 AND m.meeting_date + 3
-   ));
+LEFT JOIN dash_v_campaigns oc ON oc.id = m.credit_campaign_id AND NOT oc.excluded
+CROSS JOIN LATERAL (
+  SELECT u.sdr, u.share FROM unnest(m.sdrs, m.shares) AS u(sdr, share)
+  UNION ALL
+  SELECT NULL, 1 WHERE cardinality(COALESCE(m.sdrs, '{}')) = 0
+) s
+WHERE NOT m.internal AND m.merged_into IS NULL;

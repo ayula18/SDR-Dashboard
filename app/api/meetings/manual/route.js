@@ -1,6 +1,9 @@
 import { handle } from '@/lib/api';
 import { addManualMeeting, deleteManualMeeting, setMeetingCampaign } from '@/lib/admin';
 
+// Each change re-decides every meeting's credit (about 10 seconds), so it counts at once.
+export const maxDuration = 60;
+
 /**
  * Meetings an SDR records or attributes themselves.
  *

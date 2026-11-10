@@ -48,16 +48,22 @@ test('only a meeting no other source has becomes its own row, once', () => {
   assert.equal(meetingsOnlyOnForm([row({ companyDomain: null })], []).length, 0);
 });
 
-test('the meetings view has one definition of who booked it, with the form before the audit sheet', () => {
+test('who booked a meeting is decided once, by the meeting credit, and the view only reads it', () => {
   const views = readFileSync(new URL('../db/migrations/900_dash_views.sql', import.meta.url), 'utf8');
   const meetings = views.slice(views.indexOf('CREATE VIEW dash_v_meetings'));
   assert.ok(!/direction ILIKE 'outbound'/.test(meetings), 'the audit sheet says Outbound on Referral and Ads too');
-  const rule = meetings.slice(meetings.indexOf('CASE', meetings.indexOf('DID AN SDR BOOK IT')), meetings.indexOf('AS sdr_booked'));
-  assert.ok(rule.indexOf('form.sdr IS NOT NULL') < rule.indexOf('form.not_sdr'), 'a person named beats a channel');
-  assert.ok(rule.indexOf('form.not_sdr') < rule.indexOf("lower(btrim(dm.channel)) = 'sdr'"), 'the form beats the channel');
   assert.ok(!/ILIKE 'sdr%'/.test(meetings), '"SDR-Others" is not the SDR team: Piyush, Pranesh, champions who changed jobs');
-  assert.match(meetings, /COALESCE\(m\.stated_sdr, m\.form_sdr, m\.sdr_name/);
-  assert.match(meetings, /WHEN m\.sdr_booked THEN 'sourced'/);
+  assert.match(meetings, /LEFT JOIN dash_meeting_credit cr ON cr\.meeting_id = dm\.id/);
+  assert.match(meetings, /COALESCE\(cr\.booking_by, 'unknown'\) AS booking_by/);
+  assert.match(meetings, /WHERE NOT m\.internal AND m\.merged_into IS NULL;/, 'a repeat of a meeting counts nowhere');
+  // The form's SDR is never stamped on every record near it (prism-ml's "Ads" row counted as Dheeraj's).
+  assert.ok(!/form\.sdr AS form_sdr/.test(meetings));
+  assert.ok(!/dash_v_linkedin_leads/.test(meetings), 'no campaign is guessed in the view from whatever last reached the company');
+  const credit = readFileSync(new URL('../lib/outreach/meeting-credit.js', import.meta.url), 'utf8');
+  const who = credit.slice(credit.indexOf('export function whoBooked'));
+  const at = text => who.indexOf(text);
+  assert.ok(at('statedSdr') < at('cluster.forms') && at('cluster.forms') < at('auditSplit(rows)') && at('formOther') < at('r.sdrName'),
+    'their own word, then the form, then the audit split, then a name on a record');
 });
 
 test('the job is registered, and runs after what it matches and before what reads it', () => {
