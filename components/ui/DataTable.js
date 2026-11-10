@@ -10,9 +10,10 @@ const INTERACTIVE = 'a, button, input, select, textarea, label';
 /**
  * Sortable table with optional search, paging and CSV export.
  *
- * columns: [{ key, label, align?: 'right', render?(row), sort?(row), csv?(row) | false, sortable?, hint? }]
+ * columns: [{ key, label, align?: 'right', render?(row), sort?(row), csv?(row) | false, sortable?, hint?, cellStyle?(row) }]
  * `hint` is the column's definition, shown on hovering the header (components/views/definitions.js).
  * `csv` is also what search matches against, so give link and badge columns one.
+ * `cellStyle(row)` styles a body cell, for shading by value (the SDR page's period table).
  * `onRowClick(row)` makes rows open something (Enter or Space from the keyboard);
  * clicks on links and buttons inside a row still do their own thing. `activeKey`
  * marks the row whose details are open. `footerRow` is a total: it stays under the
@@ -159,7 +160,7 @@ export default function DataTable({
               return (
                 <tr key={key} {...rowProps(row, key)}>
                   {columns.map(c => (
-                    <td key={c.key} className={c.align === 'right' ? 'num' : undefined}>
+                    <td key={c.key} className={c.align === 'right' ? 'num' : undefined} style={c.cellStyle?.(row)}>
                       {c.render ? c.render(row) : (row[c.key] ?? '–')}
                     </td>
                   ))}

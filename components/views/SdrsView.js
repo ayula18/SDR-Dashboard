@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { fmtInt, fmtPeriod } from '@/lib/client/format';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fmtInt, fmtPct, fmtPeriod } from '@/lib/client/format';
+import { pointChange } from '@/lib/metrics/format';
 import { useApi } from '@/lib/client/use-api';
 import { useFilters, useLinkWithFilters } from '@/lib/client/use-filters';
 import BarChart from '../charts/BarChart';
@@ -11,14 +12,14 @@ import Card, { ChartTableSwitch } from '../ui/Card';
 import CountButton from '../ui/CountButton';
 import DataTable from '../ui/DataTable';
 import Delta from '../ui/Delta';
-import FilterBar from '../ui/FilterBar';
+import FilterBar, { SdrFilter } from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import { Person } from '../ui/Person';
 import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SERIES, SyncStatus, pctChange, sdrHref } from './common';
 import { DEFS } from './definitions';
-import { COMPARISONS, ComparisonButtons, FUNNEL, comparedPhrase, metricLabel, periodDates } from './funnel';
+import { COMPARISONS, ComparisonButtons, FUNNEL, RATES, comparedPhrase, fmtRate, metricLabel, periodDates, rateFormulas } from './funnel';
 import { useOutcomes } from './outcomes';
 import { ChannelToggle } from './program';
 
@@ -28,19 +29,23 @@ const CHANNELS = [['email', 'Email'], ['linkedin', 'LinkedIn'], ['call', 'Call']
 const TOTAL = 'Total';
 
 const boardMetrics = channel => FUNNEL[channel].filter(m => m.board);
+// The rows of the period table and what the charts can show: the counts, then the rates.
+const chartMetrics = channel => [...boardMetrics(channel), ...RATES[channel]];
 const sum = (rows, key) => rows.reduce((total, r) => total + r[key], 0);
 const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
+// What the footnote reconciles against the Overview: everyone's outreach less the SDRs shown.
+const OTHERS = ['emailsSent', 'invitesSent', 'emailPositive', 'linkedinPositive', 'emailMeetings', 'linkedinMeetings'];
 
 /** What the table leaves out, so it can be reconciled with the Overview. */
-function boardFootnote(data, channel, openOutcomes) {
+function boardFootnote(view, channel, openOutcomes) {
   const email = channel === 'email';
-  const unplaced = data.sdrs.filter(s => s.unplacedMeetings > 0);
-  const o = data.others;
+  const unplaced = view.sdrs.filter(s => s.unplacedMeetings > 0);
+  const o = view.others;
   const sent = email ? o.emailsSent : o.invitesSent;
   const positive = email ? o.emailPositive : o.linkedinPositive;
   const meetings = email ? o.emailMeetings : o.linkedinMeetings;
   const outside = sent + positive + meetings > 0;
-  if (!outside && !unplaced.length) return undefined;
+  if (!outside && !unplaced.length) return null;
   const count = sum(unplaced, 'unplacedMeetings');
   return (
     <>
@@ -53,9 +58,9 @@ function boardFootnote(data, channel, openOutcomes) {
             onClick={() => openOutcomes({
               kind: 'meetings',
               channel: 'none',
-              sdr: data.sdrs.map(s => s.name).join(','),
-              from: data.range.from,
-              to: data.range.to,
+              sdr: view.sdrs.map(s => s.name).join(','),
+              from: view.from,
+              to: view.to,
               title: 'Meetings with no channel yet',
             })}
           />
@@ -67,26 +72,31 @@ function boardFootnote(data, channel, openOutcomes) {
   );
 }
 
-/** One card: who, the latest full period against the one before it, then the bars. A Positive or Meetings number, or bar, opens its names. */
+/**
+ * One card: who, the latest full period against the one before it, then the bars. A
+ * Positive or Meetings number, or bar, opens its names; a rate moves in points.
+ */
 function TrendCard({ title, rows, metric, comparison, height, yMax, onOpen }) {
   const [before, latest] = rows.slice(-2);
   const grain = comparison.key;
   const openable = metric.outcome ? onOpen : null;
-  const count = row => (
+  const shown = row => (metric.rate ? fmtRate(metric, row) : (
     <CountButton
       value={row[metric.key]}
       label={`See who: ${fmtPeriod(grain, row.period, { long: true })}`}
       onClick={openable && (() => openable(row.period))}
     />
-  );
+  ));
   return (
     <Card
       title={title}
       actions={latest && before && (
         <span className="trend-numbers">
-          <strong>{count(latest)}</strong>
-          <span className="muted">vs {count(before)}</span>
-          <Delta small change={pctChange(latest[metric.key], before[metric.key])} />
+          <strong>{shown(latest)}</strong>
+          <span className="muted">vs {shown(before)}</span>
+          {metric.rate
+            ? <Delta small points={pointChange(latest[metric.key], before[metric.key])} />
+            : <Delta small change={pctChange(latest[metric.key], before[metric.key])} />}
         </span>
       )}
     >
@@ -98,6 +108,8 @@ function TrendCard({ title, rows, metric, comparison, height, yMax, onOpen }) {
           x={r => fmtPeriod(grain, r.period)}
           tooltipLabel={r => fmtPeriod(grain, r.period, { long: true })}
           series={[{ key: metric.key, label: metric.label, color: SERIES[0] }]}
+          format={metric.rate ? v => fmtPct(v, metric.digits) : undefined}
+          integer={!metric.rate}
           height={height}
           yMax={yMax}
           highlightLast={2}
@@ -118,7 +130,7 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
   const [wanted, setWanted] = useState('week');
   const [picked, setPicked] = useState(null);
   const [view, setView] = useState('chart');
-  const metrics = boardMetrics(channel);
+  const metrics = chartMetrics(channel);
   const metric = metrics.find(m => m.key === picked) || metrics[0];
   const query = useMemo(() => {
     const { range, from, to, ...rest } = params;
@@ -150,7 +162,15 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
       team: data.team[i][metric.key],
       ...Object.fromEntries(data.sdrs.map(s => [s.name, s.rows[i][metric.key]])),
     }));
-    return <ChartTable rows={rows} x={r => fmtPeriod(grain, r.period, { long: true })} xLabel={grain[0].toUpperCase() + grain.slice(1)} series={series} />;
+    return (
+      <ChartTable
+        rows={rows}
+        x={r => fmtPeriod(grain, r.period, { long: true })}
+        xLabel={grain[0].toUpperCase() + grain.slice(1)}
+        series={series}
+        format={metric.rate ? v => fmtPct(v, metric.digits) : undefined}
+      />
+    );
   };
 
   return (
@@ -159,6 +179,7 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
         <h2 className="section-title">{metricLabel(metric)}, {comparison.title}</h2>
         <p className="card-sub">
           {data ? `${comparedPhrase(grain, data.periods)} The darker bars are those two. Every SDR card uses the same scale.${metric.outcome ? ' Click a bar to see who.' : ''}` : 'Last full periods only.'}
+          {metric.rate ? ` ${metric.label} = ${metric.hint[0].toLowerCase()}${metric.hint.slice(1)}, each period on its own.` : ''}
           {grain === 'day' ? ` ${DEFS.workingDays}` : ''}
         </p>
       </div>
@@ -206,28 +227,148 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
   );
 }
 
+/** Above either table: which SDRs, then the dates or a column per day, week or month. */
+const TableControls = ({ mode, onMode }) => (
+  <>
+    <SdrFilter />
+    <ComparisonButtons value={mode} onChange={onMode} withDates />
+  </>
+);
+
 /**
- * One SDR per row for the dates picked, one channel at a time, reading left to right
- * as the funnel; below it the same numbers day on day, week on week and month on month.
- * Built for a manager to read and play with (Ayush, 2026-11-06: "no need to fit
- * everything together").
+ * Each number's row shaded on its own scale, as an Excel colour scale does it (Ayush,
+ * 2026-11-10: "a heatmap sort of with soft pastel colors just like our excel"): the row's
+ * lowest period lightest, its highest deepest. Rows never share a scale, since emails,
+ * counts and rates are different sizes. A row with nothing to tell apart, or a missing
+ * rate, stays unshaded.
+ */
+function rowShades(metrics, numbers) {
+  return Object.fromEntries(metrics.map(m => {
+    const values = numbers.map(r => r[m.key]).filter(v => v != null);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return [m.key, v => (v == null || !(max > min) ? undefined : { '--heat': ((v - min) / (max - min)).toFixed(3) })];
+  }));
+}
+
+const andList = names => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+
+/**
+ * DoD, WoW or MoM as the manager's SDR output sheet lays them out (Ayush, 2026-11-10:
+ * "the columns represent DOD or WOW and all the numbers... keep sdr as a variable so i
+ * can select the sdr mix by myself"): a row per number, counts then rates, and a column
+ * per full day, week or month, the periods the charts below show, oldest on the left.
+ * Each column adds up the SDRs the SDR filter picks, the six until someone is picked.
+ */
+function PeriodTable({ channel, params, grain: wanted, onPick, openOutcomes }) {
+  const query = useMemo(() => {
+    const { range, from, to, ...rest } = params;
+    return { ...rest, grain: wanted };
+  }, [params, wanted]);
+  const { data, error, loading, refreshing, reload } = useApi('/api/metrics/funnel', query);
+  // Labels follow the numbers on screen: the last answer stays, dimmed, until the next one arrives.
+  const grain = data?.grain || wanted;
+  const comparison = COMPARISONS.find(c => c.key === grain);
+  const channelName = channel === 'email' ? 'Email' : 'LinkedIn';
+  const metrics = chartMetrics(channel);
+  const names = data ? data.sdrs.map(s => s.name) : [];
+  const who = params.sdr ? andList(names) : `All ${names.length} SDRs`;
+  // Twenty working days run wider than the card: open on the latest, the names column held in place.
+  const scroller = useRef(null);
+  useEffect(() => {
+    const el = scroller.current?.querySelector('.dt-scroll');
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [data]);
+
+  const cell = (m, numbers, period) => {
+    if (m.rate) return fmtRate(m, numbers);
+    if (!m.outcome) return fmtInt(numbers[m.key]);
+    const title = `${m.label}: ${who}, ${channelName}, ${fmtPeriod(grain, period, { long: true })}`;
+    return (
+      <CountButton
+        value={numbers[m.key]}
+        label={`See who: ${title}`}
+        onClick={() => openOutcomes({ kind: m.outcome, channel, sdr: names.join(','), ...periodDates(grain, period), title })}
+      />
+    );
+  };
+  const shade = data ? rowShades(metrics, data.team) : {};
+  const columns = data ? [
+    { key: 'label', label: 'Number', sortable: false, csv: m => metricLabel(m), render: m => <span className="dt-hint" title={m.hint}>{metricLabel(m)}</span> },
+    ...data.periods.map((period, i) => ({
+      key: period,
+      label: fmtPeriod(grain, period, { long: grain === 'day' }),
+      align: 'right',
+      sortable: false,
+      csv: m => data.team[i][m.key],
+      render: m => cell(m, data.team[i], period),
+      cellStyle: m => shade[m.key](data.team[i][m.key]),
+    })),
+  ] : [];
+
+  // What the columns leave out, over all of them, worded as under the dates table.
+  const outside = data?.periods.length > 0 && boardFootnote({
+    sdrs: data.sdrs.map(s => ({ name: s.name, unplacedMeetings: sum(s.rows, 'unplacedMeetings') })),
+    others: Object.fromEntries(OTHERS.map(key => [key, sum(data.everyone, key) - sum(data.team, key)])),
+    from: data.periods[0],
+    to: periodDates(grain, data.periods[data.periods.length - 1]).to,
+  }, channel, openOutcomes);
+
+  return (
+    <Card
+      className={`flush${refreshing ? ' is-refreshing' : ''}`}
+      title={channelName}
+      subtitle={data
+        ? `${names.length === 1 ? who : `${who} added together`}, a column per ${comparison.unit.replace(/s$/, '')}: the last ${fmtInt(data.periods.length)} full ${comparison.unit}, oldest on the left. Pick SDRs beside the buttons to see one or a mix. ${DEFS.compareDates}${grain === 'day' ? ` ${DEFS.workingDays}` : ''}`
+        : 'Last full periods only.'}
+      actions={<TableControls mode={wanted} onMode={onPick} />}
+      footnote={data && (
+        <>
+          <span className="heat-key">Lowest <span className="heat-key-bar" aria-hidden="true" /> highest, each row on its own scale.</span>
+          <br />
+          {rateFormulas(channel)}
+          {outside && <><br />{outside}</>}
+        </>
+      )}
+    >
+      {error && <ErrorState error={error} onRetry={reload} />}
+      {loading && <LoadingBlock />}
+      {data && (
+        <div className="period-table" ref={scroller}>
+          <DataTable key={`${channel}-${grain}`} columns={columns} rows={metrics} rowKey={m => m.key} exportName={`sdr-${channel}-${grain}`} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * One SDR per row for the dates picked, one channel at a time, reading left to right as
+ * the funnel and then its rates; or with DoD, WoW or MoM, the sheet's layout, a column per
+ * period (PeriodTable). Below it the same numbers charted day on day, week on week and
+ * month on month. Built for a manager to read and play with (Ayush, 2026-11-06: "no need
+ * to fit everything together").
  */
 export default function SdrsView() {
   const { apiParams, get, setParams } = useFilters();
   const withFilters = useLinkWithFilters();
   const channel = ['linkedin', 'call'].includes(get('channel')) ? get('channel') : 'email';
+  const [mode, setMode] = useState('dates');
   const params = useMemo(() => {
     const { program, theme, ...rest } = apiParams;
     return rest;
   }, [apiParams]);
   const { data, error, loading, refreshing, reload } = useApi('/api/metrics/sdrs', params);
   const { openOutcomes, outcomesPanel } = useOutcomes();
+  const byDates = mode === 'dates';
 
-  const metrics = channel === 'call' ? [] : boardMetrics(channel);
+  const counts = channel === 'call' ? [] : boardMetrics(channel);
+  const rates = channel === 'call' ? [] : RATES[channel];
   const channelName = channel === 'email' ? 'Email' : 'LinkedIn';
-  const count = (r, m) => {
+  const countCell = (r, m) => {
     const who = r.name === TOTAL ? `All ${data.sdrs.length} SDRs` : r.name;
     const title = `${m.label}: ${who}, ${channelName}`;
+    if (!m.outcome) return fmtInt(r[m.key]);
     return (
       <CountButton
         value={r[m.key]}
@@ -251,21 +392,16 @@ export default function SdrsView() {
       csv: r => r.name,
       render: r => (r.name === TOTAL ? TOTAL : <Person name={r.name} color={r.color} href={withFilters(sdrHref(r.name))} size={24} />),
     },
-    ...metrics.map(m => ({
-      key: m.key,
-      label: metricLabel(m),
-      hint: m.hint,
-      align: 'right',
-      csv: r => r[m.key],
-      render: r => (m.outcome ? count(r, m) : fmtInt(r[m.key])),
-    })),
+    ...counts.map(m => ({ key: m.key, label: metricLabel(m), hint: m.hint, align: 'right', csv: r => r[m.key], render: r => countCell(r, m) })),
+    ...rates.map(m => ({ key: m.key, label: m.label, hint: m.hint, align: 'right', csv: r => r[m.key], render: r => fmtRate(m, r) })),
   ];
+  const outside = data && boardFootnote({ sdrs: data.sdrs, others: data.others, from: data.range.from, to: data.range.to }, channel, openOutcomes);
 
   return (
     <div className="page">
       <PageHeader
         title="SDRs"
-        description="What each SDR sent in the dates you pick and what came back, then how it moved day on day, week on week and month on month."
+        description="What each SDR sent and what came back, with each channel's rates, for the dates you pick or a column per day, week or month, then the same numbers charted."
         meta={<SyncStatus />}
       />
       <FilterBar
@@ -275,8 +411,8 @@ export default function SdrsView() {
         leading={<ChannelToggle views={CHANNELS} value={channel} onChange={value => setParams({ channel: value === 'email' ? null : value })} />}
       />
       <WarningsBanner />
-      {error && <ErrorState error={error} onRetry={reload} />}
-      {loading && channel !== 'call' && <LoadingBlock />}
+      {byDates && error && <ErrorState error={error} onRetry={reload} />}
+      {byDates && loading && channel !== 'call' && <LoadingBlock />}
 
       {channel === 'call' && (
         <Card title="Call" subtitle="Cold calling has no pipeline in the dashboard yet, so there are no call numbers to show here. Meetings booked on a call, and their positives, already count in the Overview's totals.">
@@ -284,12 +420,18 @@ export default function SdrsView() {
         </Card>
       )}
 
-      {data && channel !== 'call' && (
+      {byDates && data && channel !== 'call' && (
         <Card
           className={`flush${refreshing ? ' is-refreshing' : ''}`}
-          title={channel === 'email' ? 'Email' : 'LinkedIn'}
+          title={channelName}
           subtitle={channel === 'email' ? DEFS.boardEmail : DEFS.boardLinkedin}
-          footnote={boardFootnote(data, channel, openOutcomes)}
+          actions={<TableControls mode={mode} onMode={setMode} />}
+          footnote={(
+            <>
+              {rateFormulas(channel)}
+              {outside && <><br />{outside}</>}
+            </>
+          )}
         >
           <DataTable
             key={channel}
@@ -298,9 +440,13 @@ export default function SdrsView() {
             rowKey={r => r.name}
             footerRow={{ name: TOTAL, ...data.total }}
             exportName={`sdr-${channel}`}
-            initialSort={{ key: metrics[0].key, dir: 'desc' }}
+            initialSort={{ key: counts[0].key, dir: 'desc' }}
           />
         </Card>
+      )}
+
+      {!byDates && channel !== 'call' && (
+        <PeriodTable channel={channel} params={params} grain={mode} onPick={setMode} openOutcomes={openOutcomes} />
       )}
 
       {channel !== 'call' && <SdrTrend channel={channel} params={params} withFilters={withFilters} openOutcomes={openOutcomes} />}

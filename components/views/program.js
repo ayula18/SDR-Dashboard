@@ -163,7 +163,7 @@ export function ChannelCard({ channel, numbers, change, onOpen }) {
   const stats = email
     ? [
       { key: 'emailsSent', label: 'Total emails (all steps)', sub: DEFS.emailsSent },
-      { key: 'peopleEmailed', label: 'People emailed', sub: DEFS.peopleEmailed },
+      { key: 'firstEmails', label: 'First emails (step 1 only)', sub: DEFS.firstEmails },
       { key: 'positive', label: 'Positive responses', sub: DEFS.positive, outcome: 'positive' },
       { key: 'meetings', label: 'Meetings booked', sub: DEFS.meetingsEmail, outcome: 'meetings' },
     ]
@@ -200,14 +200,14 @@ export function ChannelCard({ channel, numbers, change, onOpen }) {
 }
 
 /**
- * One channel's rates for the range. Email is per person emailed, LinkedIn per invite
+ * One channel's rates for the range. Email is per first email (step 1 only), LinkedIn per invite
  * sent. Each shows the two numbers behind it, so a rate on a small base reads as one.
  */
 export function ChannelRatesCard({ channel, numbers, change }) {
   if (!numbers) return null;
   const email = channel === 'email';
-  const base = email ? numbers.peopleEmailed : numbers.invitesSent;
-  const unit = email ? 'people emailed' : 'invites sent';
+  const base = email ? numbers.firstEmails : numbers.invitesSent;
+  const unit = email ? 'first emails' : 'invites sent';
   const stats = [
     ...(email ? [] : [{ key: 'acceptanceRate', label: 'Acceptance %', count: numbers.accepted, digits: 1, formula: DEFS.formulaAcceptance }]),
     { key: 'positiveRate', label: 'Positive response %', count: numbers.positive, digits: 2, formula: email ? DEFS.formulaPositiveEmail : DEFS.formulaPositiveLinkedin },

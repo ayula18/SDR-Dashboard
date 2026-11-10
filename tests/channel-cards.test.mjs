@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { changesAgainst, emailCard, linkedinCard } from '../lib/metrics/programs.js';
 
-const email = (positive, people, meetings) => emailCard({ allSent: 500 }, { positive }, { people }, meetings);
+const email = (positive, firstEmails, meetings) => emailCard({ allSent: 500, sent: firstEmails }, { positive }, meetings);
 const li = (positive, sent, accepted, meetings) => linkedinCard({ invitesSent: sent, invitesAccepted: accepted }, { positive }, meetings);
 
-test('Email %: positives and meetings, each per person emailed', () => {
+test('Email %: positives and meetings, each per first email (step 1 only)', () => {
   const card = email(18, 4063, 5);
   assert.equal(card.positiveRate, 0.44);
   assert.equal(card.meetingRate, 0.12);
@@ -23,7 +23,7 @@ test('LinkedIn %: acceptances, positives and meetings, each per invite sent', ()
 test('nothing sent means no rate, never zero or a division error', () => {
   assert.equal(email(3, 0, 1).positiveRate, null);
   assert.equal(email(3, 0, 1).meetingRate, null);
-  assert.equal(emailCard({ allSent: 0 }, { positive: 0 }, null, 0).positiveRate, null);
+  assert.equal(emailCard({ allSent: 0, sent: 0 }, { positive: 0 }, 0).positiveRate, null);
   assert.equal(li(2, 0, 0, 1).acceptanceRate, null);
   assert.equal(li(2, 0, 0, 1).positiveRate, null);
 });
@@ -32,7 +32,7 @@ test('against the range before: counts change in percent, pro-rated volumes incl
   const now = email(20, 1000, 4), before = email(10, 1000, 4);
   const halfway = changesAgainst(now, before, 0.5);
   assert.equal(halfway.positive, 100);
-  assert.equal(halfway.peopleEmailed, 100, 'half the range against half of the last one would be flat; a whole range against half is double');
+  assert.equal(halfway.firstEmails, 100, 'half the range against half of the last one would be flat; a whole range against half is double');
   assert.equal(halfway.positiveRate, 1);
   assert.equal(halfway.meetingRate, 0);
   assert.equal(changesAgainst(email(1, 0, 0), before, 1).positiveRate, null, 'no rate now, no change to show');

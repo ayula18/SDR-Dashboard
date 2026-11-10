@@ -131,6 +131,29 @@ test('days add up to the same funnel as the week they fall in', () => {
   assert.deepEqual(byDay, byWeek);
 });
 
+test('the SDR page\'s rates: email per first email, LinkedIn per invite sent, from the sums and never an average', () => {
+  const rows = mergeFunnel({
+    ...empty,
+    grain: 'day',
+    periods: ['2026-11-02', '2026-11-03'],
+    email: [{ key: '2026-11-02|Akhil', sent: 1000, allSent: 3000 }, { key: '2026-11-03|Akhil', sent: 214, allSent: 400 }],
+    linkedin: [{ key: '2026-11-02|Akhil', invitesSent: 3102, invitesAccepted: 584, messagesSent: 0 }],
+    emailOutcomeRows: [{ key: '2026-11-03|Akhil', replied: 4, positive: 2 }],
+    linkedinOutcomeRows: [{ key: '2026-11-02|Akhil', replied: 1, positive: 1 }],
+    meetings: [{ date: '2026-11-02', sdr: 'Akhil', platform: 'instantly' }, { date: '2026-11-03', sdr: 'Akhil', platform: 'instantly' }],
+  });
+  const total = sumFunnel(rows);
+  assert.equal(total.emailPositiveRate, 0.16, '2 of 1,214 first emails, not of the 3,400 emails with follow-ups');
+  assert.equal(total.emailMeetingRate, 0.16);
+  assert.equal(total.acceptanceRate, 18.8);
+  assert.equal(total.linkedinPositiveRate, 0.03);
+  assert.equal(total.linkedinMeetingRate, 0, 'no LinkedIn meeting is a rate of zero, not a missing one');
+  const day = sumFunnel(rows.filter(r => r.period === '2026-11-03'));
+  assert.equal(day.emailPositiveRate, 0.93, 'that day on its own: 2 of 214');
+  assert.equal(day.acceptanceRate, null, 'no invites that day means no rate, never zero');
+  assert.equal(sumFunnel([]).emailPositiveRate, null);
+});
+
 test('an SDR list shows the six until someone is picked by name, and then exactly them', () => {
   const team = [
     { name: 'Akhil', role: 'sdr' }, { name: 'Rama', role: 'sdr' },

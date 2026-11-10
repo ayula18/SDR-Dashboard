@@ -38,6 +38,24 @@ function CustomRange({ initialFrom, initialTo, applied, onApply, onCancel }) {
 }
 
 /**
+ * The SDR filter. It lives in the URL like the rest, so a copy of it beside a table
+ * (the SDR page's) is the same filter, never a second selection that could disagree.
+ */
+export function SdrFilter() {
+  const { meta } = useDashboard();
+  const { values, setParams } = useFilters();
+  return (
+    <MultiSelect
+      label="SDRs"
+      allLabel="All SDRs"
+      options={(meta?.sdrs || []).map(s => s.name)}
+      value={values.sdr ? values.sdr.split(',').filter(Boolean) : []}
+      onChange={picked => setParams({ sdr: picked.join(',') })}
+    />
+  );
+}
+
+/**
  * The single filter row above a page's content: the date range, then who and
  * what. The selection lives in the URL, and everything below re-renders against
  * the same slice. `leading` goes before the date range; `extraRanges` adds
@@ -92,15 +110,7 @@ export default function FilterBar({ range, hide = [], defaultRange = 'last-4-wee
         />
       )}
 
-      {!hide.includes('sdr') && (
-        <MultiSelect
-          label="SDRs"
-          allLabel="All SDRs"
-          options={(meta?.sdrs || []).map(s => s.name)}
-          value={values.sdr ? values.sdr.split(',').filter(Boolean) : []}
-          onChange={picked => setParams({ sdr: picked.join(',') })}
-        />
-      )}
+      {!hide.includes('sdr') && <SdrFilter />}
 
       {!hide.includes('program') && (
         <select aria-label="Program" className="select-trigger" value={values.program} onChange={e => setParams({ program: e.target.value })}>

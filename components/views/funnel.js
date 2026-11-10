@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { fmtInt, fmtPeriod } from '@/lib/client/format';
+import { fmtInt, fmtPct, fmtPeriod } from '@/lib/client/format';
 import { useApi } from '@/lib/client/use-api';
 import { useFilters } from '@/lib/client/use-filters';
 import { isoDay, periodEnd } from '@/lib/outreach/dates';
@@ -36,6 +36,33 @@ export const FUNNEL = {
   ],
 };
 
+/**
+ * Each channel's rates on the SDR page (Ayush's manager, 2026-11-10: the % rows of
+ * the SDR output sheet), worked out on the server from the definitions the Overview's
+ * % cards use (emailRates, linkedinRates): `count` over `base`, as `hint` says.
+ */
+export const RATES = {
+  email: [
+    { key: 'emailPositiveRate', label: 'Positive response %', count: 'emailPositive', base: 'firstEmails', unit: 'first emails', digits: 2, hint: DEFS.formulaPositiveEmail, rate: true },
+    { key: 'emailMeetingRate', label: 'Meetings booked %', count: 'emailMeetings', base: 'firstEmails', unit: 'first emails', digits: 2, hint: DEFS.formulaMeetingEmail, rate: true },
+  ],
+  linkedin: [
+    { key: 'acceptanceRate', label: 'Acceptance %', count: 'invitesAccepted', base: 'invitesSent', unit: 'invites sent', digits: 1, hint: DEFS.formulaAcceptance, rate: true },
+    { key: 'linkedinPositiveRate', label: 'Positive response %', count: 'linkedinPositive', base: 'invitesSent', unit: 'invites sent', digits: 2, hint: DEFS.formulaPositiveLinkedin, rate: true },
+    { key: 'linkedinMeetingRate', label: 'Meetings booked %', count: 'linkedinMeetings', base: 'invitesSent', unit: 'invites sent', digits: 2, hint: DEFS.formulaMeetingLinkedin, rate: true },
+  ],
+};
+
+/** A rate as printed, with the two counts behind it on hover, so a rate on a small base reads as one. */
+export const fmtRate = (m, row) => (
+  <span title={`${fmtInt(row[m.count])} of ${fmtInt(row[m.base])} ${m.unit}`}>{fmtPct(row[m.key], m.digits)}</span>
+);
+
+/** "Positive response % = positive responses ÷ first emails (step 1 only) × 100. …", printed wherever the rates are. */
+export const rateFormulas = channel => RATES[channel]
+  .map(m => `${m.label} = ${m.hint[0].toLowerCase()}${m.hint.slice(1)}.`)
+  .join(' ');
+
 /** A metric with what it counts in brackets, where the name alone could be misread. */
 export const metricLabel = m => (m.note ? `${m.label} (${m.note})` : m.label);
 
@@ -48,10 +75,15 @@ export const COMPARISONS = [
   { key: 'month', label: 'MoM', title: 'month on month', last: 'the last two full months', unit: 'months' },
 ];
 
-/** DoD, WoW or MoM. */
-export function ComparisonButtons({ value, onChange }) {
+/** DoD, WoW or MoM; `withDates` puts the dates picked above first, as 'dates'. */
+export function ComparisonButtons({ value, onChange, withDates = false }) {
   return (
     <div className="segmented" role="group" aria-label="Compare by">
+      {withDates && (
+        <button type="button" aria-pressed={value === 'dates'} title="The dates picked above" onClick={() => onChange('dates')}>
+          Dates
+        </button>
+      )}
       {COMPARISONS.map(c => (
         <button key={c.key} type="button" aria-pressed={value === c.key} title={`Compare ${c.title}`} onClick={() => onChange(c.key)}>
           {c.label}
