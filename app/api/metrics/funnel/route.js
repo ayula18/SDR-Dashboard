@@ -3,14 +3,23 @@ import { parseFilters } from '@/lib/metrics/filters';
 import { getFunnelTrend } from '@/lib/metrics/funnel';
 
 /**
- * The funnel over the last full days, weeks or months: `grain` (day | week | month), `count`,
- * and `channel=call` for who makes calls, read through the Nooks dialer's last full read.
+ * The funnel a column per day, week or month: `grain` (day | week | month); `channel` (email |
+ * linkedin | call | all), which says who is listed (SDRs, callers, or both for all) and whose
+ * last full read the columns wait for; and either `count` last full periods or, when `range`
+ * or `from`/`to` is sent, the periods inside those dates.
+ * `toDate=1` adds the running day, week or month so far after them.
  */
 export async function GET(request) {
   const params = request.nextUrl.searchParams;
-  return handle(() => getFunnelTrend(parseFilters(params), {
-    grain: params.get('grain') || 'week',
-    count: params.get('count'),
-    channel: params.get('channel'),
-  }));
+  return handle(() => {
+    const filters = parseFilters(params);
+    const picked = params.get('range') || params.get('from') ? { from: filters.from, to: filters.to } : null;
+    return getFunnelTrend(filters, {
+      grain: params.get('grain') || 'week',
+      count: params.get('count'),
+      channel: params.get('channel'),
+      picked,
+      toDate: params.get('toDate') === '1',
+    });
+  });
 }

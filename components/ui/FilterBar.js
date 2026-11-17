@@ -38,6 +38,50 @@ function CustomRange({ initialFrom, initialTo, applied, onApply, onCancel }) {
 }
 
 /**
+ * A date range held by its caller, not the page's URL filters, for a box with dates of
+ * its own (the SDR page's channel boxes). `value` is { range, from, to }: a preset, exact
+ * days, or neither, which `emptyLabel` names.
+ */
+export function RangePicker({ value, onChange, emptyLabel }) {
+  const [picking, setPicking] = useState(false);
+  const custom = Boolean(value.from);
+  return (
+    <>
+      <select
+        aria-label="Date range"
+        className="select-trigger"
+        value={custom || picking ? CUSTOM : value.range || ''}
+        onChange={e => {
+          if (e.target.value === CUSTOM) {
+            setPicking(true);
+            return;
+          }
+          setPicking(false);
+          onChange({ range: e.target.value || null, from: null, to: null });
+        }}
+      >
+        <option value="">{emptyLabel}</option>
+        {RANGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <option value={CUSTOM}>Custom range…</option>
+      </select>
+      {(custom || picking) && (
+        <CustomRange
+          key={picking ? 'picking' : `${value.from}|${value.to}`}
+          initialFrom={picking ? '' : value.from}
+          initialTo={picking ? localToday() : value.to || localToday()}
+          applied={custom && !picking}
+          onApply={(from, to) => {
+            setPicking(false);
+            onChange({ range: null, from, to });
+          }}
+          onCancel={picking ? () => setPicking(false) : null}
+        />
+      )}
+    </>
+  );
+}
+
+/**
  * The SDR filter. It lives in the URL like the rest, so a copy of it beside a table
  * (the SDR page's) is the same filter, never a second selection that could disagree.
  */

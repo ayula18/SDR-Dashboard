@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mergeFunnel, shownSdrs, sumFunnel } from '../lib/metrics/funnel.js';
 import { bucket } from '../lib/metrics/sql.js';
 import { isoDay, nextPeriod, periodEnd, periodStart, periodsBetween } from '../lib/outreach/dates.js';
@@ -171,7 +171,7 @@ test('the people an SDR list leaves out can still be picked in the filter', () =
   assert.match(read('db/migrations/030_dash_six_sdrs.sql'), /role = 'sdr_extra'/);
   assert.match(read('lib/metrics/meta.js'), /t\.role === 'sdr_extra'/);
   assert.match(read('lib/admin.js'), /sdr_extra/);
-  assert.match(read('lib/metrics/dashboard.js'), /shownSdrs\(team, f\.sdr\)/);
+  assert.match(read('lib/metrics/funnel.js'), /shownSdrs\(team, filters\.sdr/);
 });
 
 test('every reader of the periods table says which grain, or days would count twice', () => {
@@ -183,14 +183,26 @@ test('every reader of the periods table says which grain, or days would count tw
   }
 });
 
-test('the SDR page and the Overview read one source, and the old leaderboard is gone', () => {
+test('the SDR page and the Overview read one source, and the old Overview and leaderboard are gone', () => {
   const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  const exists = file => existsSync(new URL(`../${file}`, import.meta.url));
   assert.doesNotMatch(read('lib/metrics/sdrs.js'), /getLeaderboard/);
-  assert.match(read('components/views/SdrsView.js'), /\/api\/metrics\/funnel/);
-  assert.match(read('components/views/funnel.js'), /\/api\/metrics\/funnel/);
-  assert.doesNotMatch(read('components/views/OverviewView.js'), /ProgramTrend/);
-  assert.doesNotMatch(read('components/views/overview.js'), /BarChart/);
-  assert.doesNotMatch(read('components/views/OverviewView.js'), /MeetingsPanel|Companies that came back/, 'Ayush removed both on 2026-11-07');
+  for (const file of ['components/views/SdrsView.js', 'components/views/OverviewView.js']) {
+    assert.match(read(file), /\/api\/metrics\/funnel/);
+    assert.match(read(file), /usePageSettings\(/, `${file} takes the one set of controls`);
+  }
+  assert.match(read('app/(dashboard)/page.js'), /OverviewView/, 'the per-SDR sheet is the home page, named Overview (Ayush, 2026-11-17)');
+  assert.doesNotMatch(read('components/views/OverviewView.js'), /OverviewTiles|ChannelCards|OverviewComparison/, 'the old Overview\'s tiles, cards and comparison stay gone');
+  for (const gone of ['components/views/overview.js', 'app/api/metrics/overview/route.js', 'lib/metrics/dashboard.js']) {
+    assert.ok(!exists(gone), `${gone} came back`);
+  }
+});
+
+test('meetings on every channel are one sum, and All is the SDRs and the callers', () => {
+  const row = { emailMeetings: 2, linkedinMeetings: 1, callMeetings: 1, unplacedMeetings: 0.5 };
+  assert.equal(sumFunnel([row]).meetings, 4.5);
+  const team = [{ name: 'Akhil', role: 'sdr' }, { name: 'Pranesh', role: 'caller' }, { name: 'Sanika', role: 'sdr_extra' }, { name: 'Muskan', role: 'other' }];
+  assert.deepEqual(shownSdrs(team, null, { channel: 'all' }).map(t => t.name), ['Akhil', 'Pranesh']);
 });
 
 test('every percentage on the rate cards prints its formula', () => {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Params, scope } from '../lib/metrics/sql.js';
-import { fullPeriods, parseFilters, resolveRange, trailingPeriods } from '../lib/metrics/filters.js';
+import { fullPeriods, parseFilters, periodColumns, resolveRange, trailingPeriods } from '../lib/metrics/filters.js';
 import { isoDay, isoWeek, periodLabel, weekStart } from '../lib/outreach/dates.js';
 
 const THU_10_SEP = new Date(Date.UTC(2026, 8, 10));
@@ -134,4 +134,61 @@ test('every other preset still compares with the period immediately before it', 
   }
   // A custom range is not calendar-anchored either.
   assert.equal(resolveRange('custom', '2026-01-01', '2026-03-31', now).comparesToLastYear, false);
+});
+
+// The SDR page's DoD / WoW / MoM columns (Ayush, 2026-11-17).
+const TUE_17_NOV = new Date(Date.UTC(2026, 10, 17));
+const JULY = { from: '2026-07-01', to: '2026-07-31' };
+const brief = cols => cols.map(c => `${c.kind} ${c.from}..${c.to}`);
+
+test('with no dates picked the columns are the last full periods, then the running one of that view only', () => {
+  const cols = periodColumns('month', { count: 2, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true });
+  assert.deepEqual(brief(cols), [
+    'full 2026-09-01..2026-09-30', 'full 2026-10-01..2026-10-31', 'mtd 2026-11-01..2026-11-17',
+  ], 'MoM gets November as MTD ("in MOM there is not nov"), and no WTD');
+  assert.deepEqual(brief(periodColumns('week', { count: 1, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true })), [
+    'full 2026-11-09..2026-11-15', 'wtd 2026-11-16..2026-11-17',
+  ], 'WoW ends with WTD only (Ayush: "only show WOW to date if that is selected")');
+  assert.deepEqual(periodColumns('week', { count: 3, asOf: TUE_17_NOV }).map(c => c.period), fullPeriods('week', 3, TUE_17_NOV),
+    'without toDate it is exactly the full periods the Overview compares');
+});
+
+test("a range picked in July gives July's days, weeks and month, and no WTD or MTD", () => {
+  const days = periodColumns('day', { picked: JULY, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true });
+  assert.equal(days.length, 23, 'the working days of July 2026');
+  assert.ok(days.every(c => c.kind === 'full' && c.from === c.to));
+  assert.deepEqual(brief(periodColumns('week', { picked: JULY, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true })), [
+    'part 2026-07-01..2026-07-05', 'full 2026-07-06..2026-07-12', 'full 2026-07-13..2026-07-19',
+    'full 2026-07-20..2026-07-26', 'part 2026-07-27..2026-07-31',
+  ], 'weeks the range cuts short count only the days inside it');
+  assert.deepEqual(brief(periodColumns('month', { picked: { from: '2026-06-15', to: '2026-07-31' }, asOf: TUE_17_NOV })), [
+    'part 2026-06-15..2026-06-30', 'full 2026-07-01..2026-07-31',
+  ]);
+});
+
+test('a range running to today stops at the last day read, and WTD and MTD carry on from there', () => {
+  const cols = periodColumns('week', { picked: { from: '2026-10-26', to: '2026-11-17' }, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true });
+  assert.deepEqual(brief(cols), [
+    'full 2026-10-26..2026-11-01', 'full 2026-11-02..2026-11-08', 'full 2026-11-09..2026-11-15',
+    'wtd 2026-11-16..2026-11-17',
+  ]);
+  const days = periodColumns('day', { picked: { from: '2026-11-12', to: '2026-11-17' }, asOf: new Date(Date.UTC(2026, 10, 16)), now: TUE_17_NOV });
+  assert.deepEqual(days.map(c => c.period), ['2026-11-12', '2026-11-13'], 'a day not yet read through is not a column, and weekends never are');
+  assert.deepEqual(brief(periodColumns('month', { picked: { from: '2026-11-01', to: '2026-11-17' }, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true })),
+    ['mtd 2026-11-01..2026-11-17'], 'this month alone is only MTD');
+});
+
+test('nothing before the dashboard starts is a column', () => {
+  const cols = periodColumns('month', { picked: { from: '2025-11-01', to: '2026-02-28' }, asOf: TUE_17_NOV, first: '2026-01-05' });
+  assert.deepEqual(cols.map(c => c.period), ['2026-01-01', '2026-02-01']);
+});
+
+test('a DoD table ends with today so far, on working days only', () => {
+  assert.deepEqual(brief(periodColumns('day', { count: 2, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true })), [
+    'full 2026-11-13..2026-11-13', 'full 2026-11-16..2026-11-16', 'today 2026-11-17..2026-11-17',
+  ], 'Ayush, 2026-11-17: "is there a way we can get 17th\'s data as well"');
+  const saturday = new Date(Date.UTC(2026, 10, 21));
+  assert.ok(!periodColumns('day', { count: 2, asOf: saturday, now: saturday, toDate: true }).some(c => c.kind === 'today'), 'a weekend day is never a DoD column');
+  assert.ok(!periodColumns('week', { count: 2, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true }).some(c => c.kind === 'today'), 'WoW and MoM hold today in WTD and MTD');
+  assert.ok(!periodColumns('day', { picked: JULY, asOf: TUE_17_NOV, now: TUE_17_NOV, toDate: true }).some(c => c.kind === 'today'), 'not when the dates end before today');
 });

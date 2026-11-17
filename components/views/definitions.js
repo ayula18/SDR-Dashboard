@@ -34,6 +34,7 @@ export const DEFS = {
   positiveList: `SDR responses come from the positive response sheet, matched to their reply where we have it, plus booked meetings nobody logged there. AI SDR and other campaigns come from our reply labels, and so do ${LABELS_FOR_NOW} for now, until those replies are on the sheet.`,
   positiveListSdr: `${SDR_SOURCE}, matched to the reply where we have it. ${LABELS_FOR_NOW} replies come from our reply labels for now.`,
   meetings: 'Booked by SDR outreach, by meeting date',
+  meetingsAll: 'Every meeting these people booked, on email, LinkedIn or a call, and ones with no channel set yet, by meeting date',
   meetingsEmail: 'Booked by SDRs from an email campaign, by meeting date',
   meetingsLinkedin: 'Booked by SDRs from a LinkedIn campaign, by meeting date',
   positiveRate: 'Email only: positive email replies that came in, per first email sent, in the same dates',
@@ -53,9 +54,6 @@ export const DEFS = {
   formulaTalk: 'Conversations (60+ seconds) ÷ calls made × 100',
   formulaPositiveCall: 'Positive responses ÷ calls made × 100',
   formulaMeetingCall: 'Meetings booked ÷ calls made × 100',
-  boardEmail: 'What went out on Instantly in these dates, and what came back during them, whenever the person was emailed.',
-  boardLinkedin: 'What went out on HeyReach in these dates, and what came back during them, whenever the person was invited.',
-  boardCall: 'Calls made on the Nooks dialer in these dates, and the meetings booked on calls during them. Callers first; an SDR joins this list from their first call.',
   compareDates: 'These stay on the latest full periods, whatever dates are picked above.',
   workingDays: 'Working days only: weekend sends count in weeks and months, not here.',
 };

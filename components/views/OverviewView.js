@@ -1,170 +1,180 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useMemo, useState } from 'react';
-import { useTeamColor } from '@/lib/client/dashboard-context';
+import { useMemo } from 'react';
 import { fmtInt } from '@/lib/client/format';
 import { useApi } from '@/lib/client/use-api';
-import { useFilters, useLinkWithFilters } from '@/lib/client/use-filters';
 import Card from '../ui/Card';
+import CountButton from '../ui/CountButton';
 import DataTable from '../ui/DataTable';
-import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
-import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
+import { ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
-import ConversationPanel from './ConversationPanel';
-import { PositiveResponses, ReplyFeed, SyncStatus, useProgramName } from './common';
+import { SyncStatus } from './common';
 import { DEFS } from './definitions';
-import { OverviewComparison } from './funnel';
+import { fmtRate, metricLabel, rateFormulas } from './funnel';
 import { useOutcomes } from './outcomes';
-import { OverviewLead, OverviewTiles, programColumns } from './overview';
-import { ChannelCards, ChannelToggle, bySdrColumns, unresolvedNote } from './program';
+import {
+  PEOPLE, PageControls, andList, channelMetrics, columnKinds, columnName, columnsPhrase, funnelQuery, heading, shadeScale,
+  usePageSettings, useScrollToLatest,
+} from './periods';
 
-/** What the SDR list leaves out, so it still reconciles with the rest of the page. */
-function outsideNote({ emailsSent, invitesSent, positive, meetings }) {
-  const parts = [
-    emailsSent > 0 && `${fmtInt(emailsSent)} first emails`,
-    invitesSent > 0 && `${fmtInt(invitesSent)} invites`,
-    positive > 0 && `${fmtInt(positive)} positive`,
-    meetings > 0 && `${fmtInt(meetings)} ${meetings === 1 ? 'meeting' : 'meetings'}`,
-  ].filter(Boolean);
-  return parts.length ? `Outside these SDRs (AI SDR and other campaigns): ${parts.join(', ')}. Pick someone in the SDR filter to see them here.` : undefined;
+// Every meeting the people booked, whatever the channel: `meetings` on a funnel row (withRates).
+const MEETINGS = { key: 'meetings', label: 'Meetings booked', note: 'every channel', hint: DEFS.meetingsAll, outcome: 'meetings' };
+
+/**
+ * The manager's SDR output sheet, section by section (Ayush, 2026-11-17: "delete the current
+ * overview section entirely and that section should have this kind of a view sdr wise and
+ * WOW should be default"): meetings on every channel, then Email, LinkedIn and Call.
+ */
+const SECTIONS = [
+  { channel: 'all', title: 'Meetings booked', metrics: [MEETINGS], footnote: DEFS.meetingsAll },
+  { channel: 'email', title: 'Email', metrics: channelMetrics('email') },
+  { channel: 'linkedin', title: 'LinkedIn', metrics: channelMetrics('linkedin') },
+  { channel: 'call', title: 'Call', metrics: channelMetrics('call') },
+];
+
+// A number's block starts with its Total row; a line above it keeps the blocks apart.
+const BLOCK = 'inset 0 2px 0 var(--border)';
+const RUNNING_EDGE = 'inset 1px 0 0 var(--border)';
+
+/**
+ * One section: for each number a Total row (the people added together, rates from the
+ * sums) and a row per person under it, a column per working day, week or month, as in the
+ * sheet. Every row is shaded on its own scale, whole periods only.
+ */
+function MetricsSection({ section, settings, openOutcomes }) {
+  const { channel, title, metrics } = section;
+  const query = useMemo(() => funnelQuery(settings, channel), [settings, channel]);
+  const { data, error, loading, refreshing, reload } = useApi('/api/metrics/funnel', query);
+  // Labels follow the numbers on screen: the last answer stays, dimmed, until the next one arrives.
+  const grain = data?.grain || settings.grain;
+  const people = data?.sdrs || [];
+  const names = people.map(p => p.name);
+  const who = settings.sdr ? andList(names) : `The ${fmtInt(names.length)} ${PEOPLE[channel].many}`;
+  const scroller = useScrollToLatest(data);
+  const columns = data?.columns || [];
+  const { running } = columnKinds(columns);
+
+  const rows = useMemo(() => {
+    if (!data) return [];
+    const full = columnKinds(data.columns).whole;
+    const list = metrics.flatMap(m => [
+      { id: m.key, metric: m, person: null, numbers: data.team },
+      ...data.sdrs.map(p => ({ id: `${m.key}|${p.name}`, metric: m, person: p, numbers: p.rows })),
+    ]);
+    return list.map(r => ({ ...r, shade: shadeScale(full.map(i => r.numbers[i][r.metric.key])) }));
+  }, [data, metrics]);
+
+  const cell = (r, i) => {
+    const m = r.metric;
+    const numbers = r.numbers[i];
+    let shown;
+    if (m.rate) shown = fmtRate(m, numbers);
+    else if (!m.outcome) shown = fmtInt(numbers[m.key]);
+    else {
+      const whose = r.person ? r.person.name : who;
+      const titleText = `${m.label}: ${whose}, ${title}, ${columnName(grain, columns[i])}`;
+      shown = (
+        <CountButton
+          value={numbers[m.key]}
+          label={`See who: ${titleText}`}
+          onClick={() => openOutcomes({
+            kind: m.outcome,
+            channel: channel === 'all' ? null : channel,
+            sdr: r.person ? r.person.name : names.join(','),
+            from: columns[i].from,
+            to: columns[i].to,
+            title: titleText,
+          })}
+        />
+      );
+    }
+    return r.person ? shown : <strong>{shown}</strong>;
+  };
+  const style = (r, extra) => {
+    const shadows = [r.person ? null : BLOCK, extra].filter(Boolean);
+    return shadows.length ? { boxShadow: shadows.join(', ') } : undefined;
+  };
+
+  const tableColumns = data ? [
+    {
+      key: 'label',
+      label: 'Number',
+      sortable: false,
+      csv: r => `${metricLabel(r.metric)}: ${r.person ? r.person.name : 'Total'}`,
+      render: r => (r.person
+        ? <span style={{ paddingLeft: 16 }}>{r.person.name}</span>
+        : <span className="dt-hint" title={r.metric.hint}><strong>{metricLabel(r.metric)}</strong> <span className="muted">· Total</span></span>),
+      cellStyle: r => style(r),
+    },
+    ...columns.map((c, i) => {
+      const { label, hint } = heading(grain, c, data.readAt);
+      return {
+        key: `${c.kind}-${c.period}`,
+        label,
+        hint,
+        align: 'right',
+        sortable: false,
+        csv: r => r.numbers[i][r.metric.key],
+        render: r => cell(r, i),
+        cellStyle: r => {
+          const shade = c.kind === 'full' ? r.shade(r.numbers[i][r.metric.key]) : undefined;
+          return { ...shade, ...style(r, i === running ? RUNNING_EDGE : null) };
+        },
+      };
+    }),
+  ] : [];
+
+  return (
+    <Card
+      className={`flush${refreshing ? ' is-refreshing' : ''}`}
+      title={title}
+      subtitle={data ? `${who} and their total, ${columnsPhrase({ grain, columns, picked: settings.picked, readAt: data.readAt })}` : null}
+      footnote={data && (
+        <>
+          <span className="heat-key">Lowest <span className="heat-key-bar" aria-hidden="true" /> highest, each row on its own scale, whole periods only.</span>
+          <br />
+          {section.footnote || rateFormulas(channel)}
+        </>
+      )}
+    >
+      {error && <ErrorState error={error} onRetry={reload} />}
+      {loading && <LoadingBlock />}
+      {data && (
+        <div className="period-table" ref={scroller}>
+          <DataTable
+            key={`${channel}-${grain}`}
+            columns={tableColumns}
+            rows={rows}
+            rowKey={r => r.id}
+            pageSize={1000}
+            exportName={`overview-${channel}-${grain}`}
+          />
+        </div>
+      )}
+    </Card>
+  );
 }
 
 /**
- * Everything the team sent and everything that came back, for a range and a
- * channel (both | email | linkedin), counted the way a program page counts it:
- * companies first, then each channel, then who it came from and what they said.
+ * The Overview, the home page (Ayush, 2026-11-17: first named "SDRs - Metrics", then "rename
+ * this page to overview only"), in place of the old Overview's tiles and cards: every
+ * number per SDR with the team total above, section by section, WoW by default, under the
+ * same controls as the SDR page.
  */
 export default function OverviewView() {
-  const { apiParams, get, setParams } = useFilters();
-  const withFilters = useLinkWithFilters();
-  const teamColor = useTeamColor();
-  const programName = useProgramName();
-  const channel = ['email', 'linkedin'].includes(get('channel')) ? get('channel') : 'both';
-  const params = useMemo(() => ({ ...apiParams, channel }), [apiParams, channel]);
-  const { data, error, loading, refreshing, reload } = useApi('/api/metrics/overview', params);
-
-  const [panel, setPanel] = useState(null);
-  const closePanel = useCallback(() => setPanel(null), []);
-  const openCompany = useCallback(company => setPanel({
-    type: 'company',
-    target: { key: company.key, name: company.company, domain: company.domain },
-  }), []);
-
-  const view = data?.channel || channel;
-  const summary = data?.companySummary;
-  const empty = data && summary.total === 0 && data.tiles.meetings.value === 0;
-
+  const settings = usePageSettings('week');
   const { openOutcomes, outcomesPanel } = useOutcomes();
-  const inRange = (kind, on, title, narrowed = {}) => openOutcomes({
-    kind,
-    channel: on,
-    sdr: apiParams.sdr,
-    program: apiParams.program,
-    theme: apiParams.theme,
-    ...narrowed,
-    from: data.range.from,
-    to: data.range.to,
-    title,
-  });
-  const channelOfView = view === 'both' ? null : view;
-
   return (
     <div className="page">
       <PageHeader
         title="Overview"
-        description="Every company the team reached on Instantly and HeyReach in this range, what came back, and the meetings that came of it."
+        description="Every number for each SDR and caller, with their total above, channel by channel: a column per week, day or month, as in the SDR output sheet."
         meta={<SyncStatus />}
       />
-      <FilterBar
-        range={data?.range}
-        leading={<ChannelToggle value={channel} onChange={value => setParams({ channel: value === 'both' ? null : value })} />}
-      />
+      <PageControls settings={settings} />
       <WarningsBanner />
-      {error && <ErrorState error={error} onRetry={reload} />}
-      {loading && <LoadingBlock />}
-
-      {empty && (
-        <EmptyState title="No outreach in this range" action={<Link className="btn btn-small" href="/health">Open data health</Link>}>
-          Nothing went out {view === 'both' ? '' : `on ${view === 'email' ? 'email' : 'LinkedIn'} `}in these dates. Pick a longer range, or
-          check that the sync has run.
-        </EmptyState>
-      )}
-
-      {data && !empty && (
-        <div className={`page${refreshing ? ' is-refreshing' : ''}`}>
-          <OverviewLead summary={summary} tiles={data.tiles} range={data.range} channel={view} />
-          <OverviewTiles tiles={data.tiles} onOpen={(kind, title) => inRange(kind, channelOfView, title)} />
-          {unresolvedNote(summary) && <p className="card-sub">{unresolvedNote(summary)}</p>}
-
-          <ChannelCards
-            view={view}
-            data={data}
-            onOpen={(kind, on, label) => inRange(kind, on, `${label}: ${on === 'email' ? 'Email' : 'LinkedIn'}`)}
-          />
-
-          <OverviewComparison channel={view} openOutcomes={openOutcomes} />
-
-          <div className="grid-2">
-            <Card
-              className="flush"
-              title={<Link href={withFilters('/sdrs')}>SDRs</Link>}
-              subtitle="What each SDR sent in this range and what came back."
-              footnote={outsideNote(data.outsideSdrs)}
-            >
-              <DataTable
-                columns={bySdrColumns({
-                  channel: view,
-                  teamColor,
-                  withFilters,
-                  withCompanies: false,
-                  withMeetings: true,
-                  onOpen: (kind, on, sdr, title) => inRange(kind, on, title, { sdr }),
-                })}
-                rows={data.bySdr}
-                rowKey={r => r.sdr}
-                dense
-                exportName="by-sdr"
-              />
-            </Card>
-            <Card className="flush" title={<Link href={withFilters('/programs')}>Programs</Link>} subtitle="Specialised outreach in this range.">
-              <DataTable
-                columns={programColumns({
-                  channel: view,
-                  withFilters,
-                  programName,
-                  onOpen: (kind, program, title) => inRange(kind, channelOfView, title, { program }),
-                })}
-                rows={data.byProgram}
-                rowKey={r => r.program}
-                dense
-                exportName="by-program"
-              />
-            </Card>
-          </div>
-
-          <Card className="flush" title="Positive responses" subtitle={DEFS.positiveList}>
-            <PositiveResponses
-              rows={data.positives}
-              onOpen={r => openCompany({ key: r.companyKey, company: r.company, domain: r.domain })}
-            />
-          </Card>
-
-          <Card title="Latest replies" subtitle="What people wrote back in this range, as our labels read it. Open one to read the whole conversation.">
-            <ReplyFeed
-              replies={data.replies.slice(0, 10)}
-              onOpen={r => openCompany({ key: r.companyKey, company: r.domain || r.name, domain: r.domain })}
-            />
-          </Card>
-        </div>
-      )}
-
-      <ConversationPanel
-        target={panel?.type === 'company' ? panel.target : null}
-        channel={view}
-        onClose={closePanel}
-      />
+      {SECTIONS.map(section => <MetricsSection key={section.channel} section={section} settings={settings} openOutcomes={openOutcomes} />)}
       {outcomesPanel}
     </div>
   );

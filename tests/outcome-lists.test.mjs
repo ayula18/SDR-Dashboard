@@ -44,7 +44,7 @@ test('Positive and Meetings numbers open their names on the SDR page, the Overvi
   for (const key of ['emailPositive', 'emailMeetings', 'linkedinPositive', 'linkedinMeetings']) {
     assert.match(funnel, new RegExp(`key: '${key}'[^\\n]*outcome: '`), `${key} does not open its names`);
   }
-  assert.match(read('components/views/overview.js'), /CountButton/);
+  assert.match(read('components/views/OverviewView.js'), /CountButton/);
   assert.match(read('components/views/program.js'), /CountButton/);
 });
 

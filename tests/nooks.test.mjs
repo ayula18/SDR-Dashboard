@@ -83,15 +83,15 @@ test('calls add up by day and caller, with the rates worked out from the sums', 
   assert.equal(sumFunnel([]).callTalkRate, null, 'no calls is no talk rate either');
 });
 
-test('the Call view lists the callers and any SDR from their first call; picking someone shows exactly them', () => {
+test('Calls list the SDRs and the callers; picking someone shows exactly them', () => {
   const team = [
     { name: 'Akhil', role: 'sdr' }, { name: 'Rama', role: 'sdr' }, { name: 'Sanika', role: 'sdr_extra' },
     { name: 'Pranesh', role: 'caller' }, { name: 'Yashika', role: 'caller' }, { name: 'Muskan', role: 'other' },
   ];
   const names = (picked, options) => shownSdrs(team, picked, options).map(t => t.name);
   assert.deepEqual(names(null), ['Akhil', 'Rama'], 'Email and LinkedIn still list the SDRs');
-  assert.deepEqual(names(null, { channel: 'call' }), ['Pranesh', 'Yashika']);
-  assert.deepEqual(names(null, { channel: 'call', dialed: new Set(['Rama', 'Sanika']) }), ['Rama', 'Pranesh', 'Yashika'], 'an SDR who has dialed joins; an extra waits to be picked');
+  assert.deepEqual(names(null, { channel: 'call' }), ['Akhil', 'Rama', 'Pranesh', 'Yashika'],
+    'Ayush, 2026-11-17: "in calls lets put the sdrs not just pranesh and yashika"; an extra still waits to be picked');
   assert.deepEqual(names(['Akhil'], { channel: 'call' }), ['Akhil']);
 });
 
