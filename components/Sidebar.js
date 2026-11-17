@@ -3,25 +3,29 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  CalendarCheck, ClipboardCheck, HeartPulse, Layers, LayoutDashboard, Lightbulb, LogOut, Megaphone, Radar, TrendingUp, Users,
+  CalendarCheck, Camera, ClipboardCheck, HeartPulse, Layers, LayoutDashboard, Lightbulb, LogOut, Megaphone, Radar, Table, TrendingUp,
 } from 'lucide-react';
+import { canSeePage } from '@/lib/access';
 import { endSession } from '@/lib/auth-actions';
 import { useDashboard } from '@/lib/client/dashboard-context';
 import { useLinkWithFilters } from '@/lib/client/use-filters';
 import ThemeToggle from './ThemeToggle';
 import { Avatar } from './ui/Person';
 
+// Everyone sees the first three; the rest only a super admin (canSeePage, lib/access.js;
+// Ayush, 2026-11-17), the same rule the proxy holds every page to.
 const GROUPS = [
   {
     items: [
       { label: 'Overview', href: '/', icon: LayoutDashboard },
+      { label: 'SDR Detailed - Metrics', href: '/sdr-metrics', icon: Table },
+      { label: 'Snapshot View', href: '/snapshot', icon: Camera },
       { label: 'Trends', href: '/trends', icon: TrendingUp },
     ],
   },
   {
     label: 'Outreach',
     items: [
-      { label: 'SDRs', href: '/sdrs', icon: Users },
       { label: 'Campaigns', href: '/campaigns', icon: Megaphone },
       { label: 'Programs', href: '/programs', icon: Layers, programs: true },
     ],
@@ -43,8 +47,11 @@ const GROUPS = [
 
 export default function Sidebar({ open, onNavigate }) {
   const pathname = usePathname();
-  const { meta, user, isAdmin } = useDashboard();
+  const { meta, user, isAdmin, isSuperAdmin } = useDashboard();
   const withFilters = useLinkWithFilters();
+  const groups = GROUPS
+    .map(group => ({ ...group, items: group.items.filter(item => canSeePage(item.href, user?.email)) }))
+    .filter(group => group.items.length > 0);
 
   const isActive = href => (href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`));
 
@@ -59,7 +66,7 @@ export default function Sidebar({ open, onNavigate }) {
       </div>
 
       <nav className="sidebar-nav">
-        {GROUPS.map((group, gi) => (
+        {groups.map((group, gi) => (
           <div key={group.label || gi}>
             {group.label && <div className="sidebar-section-label">{group.label}</div>}
             {group.items.map(item => {
@@ -107,7 +114,7 @@ export default function Sidebar({ open, onNavigate }) {
             <Avatar name={user.name || user.email} color="var(--series-1)" size={28} />
             <div style={{ minWidth: 0 }}>
               <div className="sidebar-user-name">{user.name || user.email}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isAdmin ? 'Admin' : 'Team member'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{isSuperAdmin ? 'Super admin' : isAdmin ? 'Admin' : 'Team member'}</div>
             </div>
           </div>
         )}

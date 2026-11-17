@@ -11,7 +11,7 @@ import { DEFS } from './definitions';
 import { ComparisonButtons, FUNNEL, RATES } from './funnel';
 
 /**
- * What the period pages share, the SDR page and the Overview: a column per working day,
+ * What the period pages share, the Overview and SDR Detailed - Metrics: a column per working day,
  * week or month (`periodColumns` on the server, `/api/metrics/funnel`), one set of
  * controls above them all, and the same headings, shading and wording, so the two pages
  * read alike and cannot drift apart.
@@ -144,7 +144,7 @@ export function PageControls({ settings }) {
       <ComparisonButtons value={settings.grain} onChange={settings.setGrain} />
       <MultiSelect
         label="People"
-        allLabel="All SDRs, and callers on Call"
+        allLabel="All SDRs"
         options={(meta?.sdrs || []).map(s => s.name)}
         value={settings.sdr ? settings.sdr.split(',').filter(Boolean) : []}
         onChange={settings.setSdr}

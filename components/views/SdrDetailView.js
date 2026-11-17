@@ -34,7 +34,7 @@ export default function SdrDetailView({ name }) {
   return (
     <div className="page">
       <PageHeader
-        back={{ href: withFilters('/sdrs'), label: 'All SDRs' }}
+        back={{ href: withFilters('/'), label: 'Overview' }}
         title={<><Avatar name={name} color={teamColor(name)} size={32} />{name}</>}
         description={`Outreach, what works and meetings for ${name}.`}
         meta={<SyncStatus />}

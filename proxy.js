@@ -4,11 +4,15 @@
  *
  *   a page  -> redirect to /login, remembering where they were headed
  *   an API  -> 401 JSON, since fetch() can't follow a redirect to a login screen
+ *
+ * Signed in, a page that is not open to everyone goes to the Overview unless they are a
+ * super admin (canSeePage, lib/access.js).
  */
 
 import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authConfig } from './auth.config.js';
+import { canSeePage } from './lib/access.js';
 
 const { auth } = NextAuth(authConfig);
 
@@ -19,7 +23,11 @@ function isPublic(pathname) {
 
 export const proxy = auth((req) => {
   const { pathname, search } = req.nextUrl;
-  if (isPublic(pathname) || req.auth?.user) return NextResponse.next();
+  if (isPublic(pathname)) return NextResponse.next();
+  if (req.auth?.user) {
+    if (pathname.startsWith('/api/') || canSeePage(pathname, req.auth.user.email)) return NextResponse.next();
+    return NextResponse.redirect(new URL('/', req.nextUrl.origin));
+  }
 
   if (pathname.startsWith('/api/')) {
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 });

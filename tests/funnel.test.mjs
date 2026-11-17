@@ -187,12 +187,15 @@ test('the SDR page and the Overview read one source, and the old Overview and le
   const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
   const exists = file => existsSync(new URL(`../${file}`, import.meta.url));
   assert.doesNotMatch(read('lib/metrics/sdrs.js'), /getLeaderboard/);
-  for (const file of ['components/views/SdrsView.js', 'components/views/OverviewView.js']) {
+  for (const file of ['components/views/OverviewView.js', 'components/views/SdrMetricsView.js']) {
     assert.match(read(file), /\/api\/metrics\/funnel/);
     assert.match(read(file), /usePageSettings\(/, `${file} takes the one set of controls`);
   }
-  assert.match(read('app/(dashboard)/page.js'), /OverviewView/, 'the per-SDR sheet is the home page, named Overview (Ayush, 2026-11-17)');
-  assert.doesNotMatch(read('components/views/OverviewView.js'), /OverviewTiles|ChannelCards|OverviewComparison/, 'the old Overview\'s tiles, cards and comparison stay gone');
+  assert.match(read('app/(dashboard)/page.js'), /OverviewView/, 'the three channel boxes are the home page, the Overview (Ayush, 2026-11-17)');
+  assert.match(read('app/(dashboard)/sdr-metrics/page.js'), /SdrMetricsView/, 'the per-SDR sheet is SDR Detailed - Metrics');
+  for (const file of ['components/views/OverviewView.js', 'components/views/SdrMetricsView.js']) {
+    assert.doesNotMatch(read(file), /OverviewTiles|ChannelCards|OverviewComparison/, 'the old Overview\'s tiles, cards and comparison stay gone');
+  }
   for (const gone of ['components/views/overview.js', 'app/api/metrics/overview/route.js', 'lib/metrics/dashboard.js']) {
     assert.ok(!exists(gone), `${gone} came back`);
   }

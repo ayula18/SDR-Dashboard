@@ -5,7 +5,7 @@ import { DEFS } from './definitions';
 
 /**
  * Each channel's funnel in reading order. `board` marks the numbers the SDR page and
- * the Overview show (Ayush, 2026-11-06: the SDR output sheet's columns, with both
+ * SDR Detailed - Metrics show (Ayush, 2026-11-06: the SDR output sheet's columns, with both
  * email counts).
  */
 export const FUNNEL = {

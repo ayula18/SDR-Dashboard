@@ -36,15 +36,15 @@ test('the list asks for what the number counted, and refuses anything else', asy
   assert.match(source, /listMeetings\(filters, \{ \.\.\.range, platform: MEETING_CHANNEL\[channel\] \|\| null, withRescheduled: false/, 'meetings as the funnel counts them: no moved slots, by the credit\'s channel');
 });
 
-test('Positive and Meetings numbers open their names on the SDR page, the Overview and program pages', () => {
-  assert.match(read('components/views/SdrsView.js'), /useOutcomes\(\)/);
+test('Positive and Meetings numbers open their names on the Overview, SDR Detailed - Metrics and program pages', () => {
   assert.match(read('components/views/OverviewView.js'), /useOutcomes\(\)/);
+  assert.match(read('components/views/SdrMetricsView.js'), /useOutcomes\(\)/);
   assert.match(read('components/views/ProgramDetailView.js'), /useOutcomes\(\)/);
   const funnel = read('components/views/funnel.js');
   for (const key of ['emailPositive', 'emailMeetings', 'linkedinPositive', 'linkedinMeetings']) {
     assert.match(funnel, new RegExp(`key: '${key}'[^\\n]*outcome: '`), `${key} does not open its names`);
   }
-  assert.match(read('components/views/OverviewView.js'), /CountButton/);
+  assert.match(read('components/views/SdrMetricsView.js'), /CountButton/);
   assert.match(read('components/views/program.js'), /CountButton/);
 });
 
@@ -61,7 +61,7 @@ test('the two email counts say what they are, in one place', () => {
   assert.match(funnel, /label: 'Total emails', note: 'all steps'/);
   assert.match(funnel, /label: 'First emails', note: 'step 1 only'/);
   assert.match(read('components/views/program.js'), /label: 'Total emails \(all steps\)'/);
-  for (const file of ['components/views/funnel.js', 'components/views/program.js', 'components/views/SdrsView.js']) {
+  for (const file of ['components/views/funnel.js', 'components/views/program.js', 'components/views/OverviewView.js']) {
     assert.doesNotMatch(read(file), /label: 'Emails sent'/, `${file} still says Emails sent`);
   }
 });
