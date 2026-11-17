@@ -9,14 +9,14 @@ import { MEETING_STATUS, POSITIVE_SOURCE } from './common';
 import ConversationPanel from './ConversationPanel';
 
 const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
-const CHANNEL = { email: 'Email', linkedin: 'LinkedIn' };
+const CHANNEL = { email: 'Email', linkedin: 'LinkedIn', call: 'Call' };
 // A meeting with no campaign still has the channel the credit found: a Nooks call, a
 // chat on Piyush's own LinkedIn, a reply to a broadcast.
 const NO_CAMPAIGN = { email: 'Email, no campaign', linkedin: 'LinkedIn, no campaign', call: 'Call, no campaign' };
 
 function said(row) {
   if (row.quote) return <span className="company-list-quote">“{row.quote}”</span>;
-  if (row.note) return <span className="company-list-quote muted">{row.source === 'booked' ? row.note : `SDR note: ${row.note}`}</span>;
+  if (row.note) return <span className="company-list-quote muted">{row.source === 'booked' || row.source === 'nooks' ? row.note : `SDR note: ${row.note}`}</span>;
   return <span className="company-list-quote muted">Reply not in our conversations</span>;
 }
 

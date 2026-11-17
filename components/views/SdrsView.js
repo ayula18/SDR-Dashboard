@@ -15,41 +15,49 @@ import Delta from '../ui/Delta';
 import FilterBar, { SdrFilter } from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
 import { Person } from '../ui/Person';
-import { EmptyState, ErrorState, LoadingBlock } from '../ui/States';
+import { ErrorState, LoadingBlock } from '../ui/States';
 import WarningsBanner from '../ui/WarningsBanner';
 import { SERIES, SyncStatus, pctChange, sdrHref } from './common';
 import { DEFS } from './definitions';
-import { COMPARISONS, ComparisonButtons, FUNNEL, RATES, comparedPhrase, fmtRate, metricLabel, periodDates, rateFormulas } from './funnel';
+import { CHANNEL_NAMES, COMPARISONS, ComparisonButtons, FUNNEL, RATES, comparedPhrase, fmtRate, metricLabel, periodDates, rateFormulas } from './funnel';
 import { useOutcomes } from './outcomes';
 import { ChannelToggle } from './program';
 
-// Call has no pipeline yet (Ayush, 2026-11-10): the button is there, its cards come later.
-// Call meetings and positives already count in the Overview totals.
+// Call is the Nooks dialer (Ayush, 2026-11-17: "same way we will show metric exacly like
+// email and linkedin"), its list the callers and any SDR who has dialed.
 const CHANNELS = [['email', 'Email'], ['linkedin', 'LinkedIn'], ['call', 'Call']];
 const TOTAL = 'Total';
+/** Who a channel's rows are: SDRs on Email and LinkedIn, whoever made calls on Call. */
+const PEOPLE = { email: { one: 'SDR', many: 'SDRs' }, linkedin: { one: 'SDR', many: 'SDRs' }, call: { one: 'Caller', many: 'callers' } };
 
 const boardMetrics = channel => FUNNEL[channel].filter(m => m.board);
 // The rows of the period table and what the charts can show: the counts, then the rates.
 const chartMetrics = channel => [...boardMetrics(channel), ...RATES[channel]];
 const sum = (rows, key) => rows.reduce((total, r) => total + r[key], 0);
 const plural = (n, one, many = `${one}s`) => `${fmtInt(n)} ${n === 1 ? one : many}`;
-// What the footnote reconciles against the Overview: everyone's outreach less the SDRs shown.
-const OTHERS = ['emailsSent', 'invitesSent', 'emailPositive', 'linkedinPositive', 'emailMeetings', 'linkedinMeetings'];
+// What the footnote reconciles against the Overview: everyone's outreach less the people shown.
+const OTHERS = ['emailsSent', 'invitesSent', 'callsMade', 'emailPositive', 'linkedinPositive', 'callPositive', 'emailMeetings', 'linkedinMeetings', 'callMeetings'];
+// Each channel's volume, positives and meetings, and who is outside the list.
+const OUTSIDE = {
+  email: { sent: 'emailsSent', unit: 'email', positive: 'emailPositive', meetings: 'emailMeetings', who: 'Campaigns outside these SDRs (AI SDR and others)' },
+  linkedin: { sent: 'invitesSent', unit: 'invite', positive: 'linkedinPositive', meetings: 'linkedinMeetings', who: 'Campaigns outside these SDRs (AI SDR and others)' },
+  call: { sent: 'callsMade', unit: 'call', positive: 'callPositive', meetings: 'callMeetings', who: 'Calls by people not on this list (not on the roster, or since removed from Nooks)' },
+};
 
 /** What the table leaves out, so it can be reconciled with the Overview. */
 function boardFootnote(view, channel, openOutcomes) {
-  const email = channel === 'email';
+  const keys = OUTSIDE[channel];
   const unplaced = view.sdrs.filter(s => s.unplacedMeetings > 0);
   const o = view.others;
-  const sent = email ? o.emailsSent : o.invitesSent;
-  const positive = email ? o.emailPositive : o.linkedinPositive;
-  const meetings = email ? o.emailMeetings : o.linkedinMeetings;
+  const sent = o[keys.sent];
+  const positive = o[keys.positive];
+  const meetings = o[keys.meetings];
   const outside = sent + positive + meetings > 0;
   if (!outside && !unplaced.length) return null;
   const count = sum(unplaced, 'unplacedMeetings');
   return (
     <>
-      {outside && `Campaigns outside these SDRs (AI SDR and others) add ${plural(sent, email ? 'email' : 'invite')}, ${plural(positive, 'positive response')} and ${plural(meetings, 'meeting')}. The Overview counts them. Pick someone in the SDR filter to see them here. `}
+      {outside && `${keys.who} add ${plural(sent, keys.unit)}, ${plural(positive, 'positive response')} and ${plural(meetings, 'meeting')}. The Overview counts them. Pick someone in the SDR filter to see them here. `}
       {unplaced.length > 0 && (
         <>
           <CountButton
@@ -140,10 +148,10 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
   // Labels follow the numbers on screen: the last answer stays, dimmed, until the next one arrives.
   const grain = data?.grain || wanted;
   const comparison = COMPARISONS.find(c => c.key === grain);
-  const teamLabel = params.sdr ? 'Selected SDRs' : 'All SDRs';
+  const teamLabel = params.sdr ? `Selected ${PEOPLE[channel].many}` : `All ${PEOPLE[channel].many}`;
   const yMax = data ? Math.max(0, ...data.sdrs.flatMap(s => s.rows.map(r => r[metric.key]))) : 0;
   const several = data?.sdrs.length > 1;
-  const channelName = channel === 'email' ? 'Email' : 'LinkedIn';
+  const channelName = CHANNEL_NAMES[channel];
   const opener = (sdr, who) => period => openOutcomes({
     kind: metric.outcome,
     channel,
@@ -178,7 +186,7 @@ function SdrTrend({ channel, params, withFilters, openOutcomes }) {
       <div>
         <h2 className="section-title">{metricLabel(metric)}, {comparison.title}</h2>
         <p className="card-sub">
-          {data ? `${comparedPhrase(grain, data.periods)} The darker bars are those two. Every SDR card uses the same scale.${metric.outcome ? ' Click a bar to see who.' : ''}` : 'Last full periods only.'}
+          {data ? `${comparedPhrase(grain, data.periods)} The darker bars are those two. Every card uses the same scale.${metric.outcome ? ' Click a bar to see who.' : ''}` : 'Last full periods only.'}
           {metric.rate ? ` ${metric.label} = ${metric.hint[0].toLowerCase()}${metric.hint.slice(1)}, each period on its own.` : ''}
           {grain === 'day' ? ` ${DEFS.workingDays}` : ''}
         </p>
@@ -269,10 +277,10 @@ function PeriodTable({ channel, params, grain: wanted, onPick, openOutcomes }) {
   // Labels follow the numbers on screen: the last answer stays, dimmed, until the next one arrives.
   const grain = data?.grain || wanted;
   const comparison = COMPARISONS.find(c => c.key === grain);
-  const channelName = channel === 'email' ? 'Email' : 'LinkedIn';
+  const channelName = CHANNEL_NAMES[channel];
   const metrics = chartMetrics(channel);
   const names = data ? data.sdrs.map(s => s.name) : [];
-  const who = params.sdr ? andList(names) : `All ${names.length} SDRs`;
+  const who = params.sdr ? andList(names) : `All ${names.length} ${PEOPLE[channel].many}`;
   // Twenty working days run wider than the card: open on the latest, the names column held in place.
   const scroller = useRef(null);
   useEffect(() => {
@@ -319,7 +327,7 @@ function PeriodTable({ channel, params, grain: wanted, onPick, openOutcomes }) {
       className={`flush${refreshing ? ' is-refreshing' : ''}`}
       title={channelName}
       subtitle={data
-        ? `${names.length === 1 ? who : `${who} added together`}, a column per ${comparison.unit.replace(/s$/, '')}: the last ${fmtInt(data.periods.length)} full ${comparison.unit}, oldest on the left. Pick SDRs beside the buttons to see one or a mix. ${DEFS.compareDates}${grain === 'day' ? ` ${DEFS.workingDays}` : ''}`
+        ? `${names.length === 1 ? who : `${who} added together`}, a column per ${comparison.unit.replace(/s$/, '')}: the last ${fmtInt(data.periods.length)} full ${comparison.unit}, oldest on the left. Pick ${PEOPLE[channel].many} beside the buttons to see one or a mix. ${DEFS.compareDates}${grain === 'day' ? ` ${DEFS.workingDays}` : ''}`
         : 'Last full periods only.'}
       actions={<TableControls mode={wanted} onMode={onPick} />}
       footnote={data && (
@@ -354,19 +362,21 @@ export default function SdrsView() {
   const withFilters = useLinkWithFilters();
   const channel = ['linkedin', 'call'].includes(get('channel')) ? get('channel') : 'email';
   const [mode, setMode] = useState('dates');
+  // The Call view asks for who makes calls; Email and LinkedIn share one answer.
   const params = useMemo(() => {
     const { program, theme, ...rest } = apiParams;
-    return rest;
-  }, [apiParams]);
+    return channel === 'call' ? { ...rest, channel } : rest;
+  }, [apiParams, channel]);
   const { data, error, loading, refreshing, reload } = useApi('/api/metrics/sdrs', params);
   const { openOutcomes, outcomesPanel } = useOutcomes();
   const byDates = mode === 'dates';
 
-  const counts = channel === 'call' ? [] : boardMetrics(channel);
-  const rates = channel === 'call' ? [] : RATES[channel];
-  const channelName = channel === 'email' ? 'Email' : 'LinkedIn';
+  const counts = boardMetrics(channel);
+  const rates = RATES[channel];
+  const channelName = CHANNEL_NAMES[channel];
+  const people = PEOPLE[channel];
   const countCell = (r, m) => {
-    const who = r.name === TOTAL ? `All ${data.sdrs.length} SDRs` : r.name;
+    const who = r.name === TOTAL ? `All ${data.sdrs.length} ${people.many}` : r.name;
     const title = `${m.label}: ${who}, ${channelName}`;
     if (!m.outcome) return fmtInt(r[m.key]);
     return (
@@ -387,7 +397,7 @@ export default function SdrsView() {
   const columns = [
     {
       key: 'name',
-      label: 'SDR',
+      label: people.one,
       sort: r => r.name,
       csv: r => r.name,
       render: r => (r.name === TOTAL ? TOTAL : <Person name={r.name} color={r.color} href={withFilters(sdrHref(r.name))} size={24} />),
@@ -401,7 +411,7 @@ export default function SdrsView() {
     <div className="page">
       <PageHeader
         title="SDRs"
-        description="What each SDR sent and what came back, with each channel's rates, for the dates you pick or a column per day, week or month, then the same numbers charted."
+        description="What each SDR sent and what came back, and the calls made on Nooks, with each channel's rates, for the dates you pick or a column per day, week or month, then the same numbers charted."
         meta={<SyncStatus />}
       />
       <FilterBar
@@ -412,19 +422,13 @@ export default function SdrsView() {
       />
       <WarningsBanner />
       {byDates && error && <ErrorState error={error} onRetry={reload} />}
-      {byDates && loading && channel !== 'call' && <LoadingBlock />}
+      {byDates && loading && <LoadingBlock />}
 
-      {channel === 'call' && (
-        <Card title="Call" subtitle="Cold calling has no pipeline in the dashboard yet, so there are no call numbers to show here. Meetings booked on a call, and their positives, already count in the Overview's totals.">
-          <EmptyState title="Coming soon">Call volumes, positives and meetings per SDR will appear here once cold calling is connected.</EmptyState>
-        </Card>
-      )}
-
-      {byDates && data && channel !== 'call' && (
+      {byDates && data && (
         <Card
           className={`flush${refreshing ? ' is-refreshing' : ''}`}
           title={channelName}
-          subtitle={channel === 'email' ? DEFS.boardEmail : DEFS.boardLinkedin}
+          subtitle={{ email: DEFS.boardEmail, linkedin: DEFS.boardLinkedin, call: DEFS.boardCall }[channel]}
           actions={<TableControls mode={mode} onMode={setMode} />}
           footnote={(
             <>
@@ -445,11 +449,11 @@ export default function SdrsView() {
         </Card>
       )}
 
-      {!byDates && channel !== 'call' && (
+      {!byDates && (
         <PeriodTable channel={channel} params={params} grain={mode} onPick={setMode} openOutcomes={openOutcomes} />
       )}
 
-      {channel !== 'call' && <SdrTrend channel={channel} params={params} withFilters={withFilters} openOutcomes={openOutcomes} />}
+      <SdrTrend channel={channel} params={params} withFilters={withFilters} openOutcomes={openOutcomes} />
       {outcomesPanel}
     </div>
   );

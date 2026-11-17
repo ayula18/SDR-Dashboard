@@ -9,6 +9,7 @@
 import NextAuth from 'next-auth';
 import { authConfig } from './auth.config.js';
 import { qp } from './lib/db.js';
+import { logHubSignIn } from './lib/hub-login-log.js';
 
 /** First sign-in creates the row; later ones refresh the profile. `role` is never overwritten. */
 async function upsertUser({ email, name, image }) {
@@ -42,6 +43,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // A database blip must not lock out someone Google already verified.
           console.error('auth: sdr_users upsert failed:', err.message);
           token.role = token.role || 'sdr';
+        }
+        try {
+          await logHubSignIn({ email, name: profile?.name || user.name });
+        } catch (err) {
+          // Only feeds GTM Hub's admin page. Never block a sign-in on it.
+          console.error('auth: hub sign-in log failed:', err.message);
         }
       }
       return token;

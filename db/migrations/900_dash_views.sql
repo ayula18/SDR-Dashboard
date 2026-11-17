@@ -10,6 +10,7 @@
 -- A view drops before anything it reads, or Postgres refuses and the whole file
 -- rolls back: meetings reads the LinkedIn people, both people views read the sheet,
 -- and the sheet reads campaigns. tests/positive-sheet.test.mjs checks this order.
+DROP VIEW IF EXISTS dash_v_calls;
 DROP VIEW IF EXISTS dash_v_meetings;
 DROP VIEW IF EXISTS dash_v_linkedin_leads;
 DROP VIEW IF EXISTS dash_v_leads;
@@ -432,3 +433,46 @@ CROSS JOIN LATERAL (
   SELECT NULL, 1 WHERE cardinality(COALESCE(m.sdrs, '{}')) = 0
 ) s
 WHERE NOT m.internal AND m.merged_into IS NULL;
+
+-- Calls made on the Nooks dialer (034), with what each one counts as. Calls made are the
+-- outgoing ones.
+--   sdr        who dialed: the roster member with that Nooks login's email, else the one whose
+--              name or alias is the first word of the Nooks name ("Rama Dharmik" is Rama).
+--              NULL for anyone not on the roster (Piyush, Garima) or a user since deleted in
+--              Nooks: those calls count in totals, outside any person's row.
+--   connected  a person picked up (Ayush, 2026-11-17: "calls connected to real human"): Nooks
+--              heard a person (call_label 'human'), or the caller marked the call a connect.
+--              Nooks' label alone misses people: checked against transcripts on 2026-11-17,
+--              15 of Pranesh's calls from 26 Oct to 16 Nov were real conversations (up to
+--              177 s) that Nooks labelled a machine or left unlabelled, a call-screening
+--              greeting before the person came on, mostly. Voicemail, machines and phone
+--              trees the caller did not mark stay out.
+--   conversation  connected, and the call ran 60 seconds or more. Nooks' duration runs from
+--              the answer to the hang-up (it matches the transcript's length; an unanswered
+--              call is 0 s), so it is time on the line with the person, not ringing
+--              (Ayush, 2026-11-17: "Conversations (60+ seconds)")
+--   positive   the caller marked the call Connected - Positive, or a meeting, in Nooks: their own
+--              log of it, as the positive response sheet is the SDRs'
+-- A call is in no campaign, so program, theme and campaign_id are NULL and a program, theme or
+-- campaign filter leaves calls out (scope('call') in lib/metrics/sql.js).
+CREATE VIEW dash_v_calls AS
+SELECT
+  c.id, c.called_at, c.owner_id, c.owner_email, c.owner_name, who.name AS sdr,
+  NULL::text AS program, NULL::text AS theme, NULL::text AS campaign_id,
+  c.dialing_mode, c.duration_s, c.call_label, c.disposition, c.call_outcome,
+  (c.call_label = 'human' OR c.call_outcome = 'Connect') AS connected,
+  ((c.call_label = 'human' OR c.call_outcome = 'Connect') AND c.duration_s >= 60) AS conversation,
+  (c.disposition = 'Connected - Positive' OR c.call_outcome = 'Meeting') AS positive,
+  c.prospect_name, c.prospect_email, NULLIF(lower(split_part(c.prospect_email, '@', 2)), '') AS prospect_domain,
+  c.has_recording, c.has_transcript
+FROM dash_calls c
+LEFT JOIN LATERAL (
+  SELECT t.name
+    FROM dash_team t
+   WHERE lower(t.email) = lower(c.owner_email)
+      OR lower(t.name) = lower(split_part(c.owner_name, ' ', 1))
+      OR lower(split_part(c.owner_name, ' ', 1)) = ANY(t.aliases)
+   ORDER BY (lower(t.email) = lower(c.owner_email)) IS TRUE DESC, t.name
+   LIMIT 1
+) who ON TRUE
+WHERE c.direction = 'outgoing';

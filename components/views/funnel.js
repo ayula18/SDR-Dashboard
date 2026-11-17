@@ -34,12 +34,24 @@ export const FUNNEL = {
     { key: 'linkedinPositive', label: 'Positive responses', hint: DEFS.positive, board: true, outcome: 'positive' },
     { key: 'linkedinMeetings', label: 'Meetings booked', hint: DEFS.meetingsLinkedin, board: true, outcome: 'meetings' },
   ],
+  // Ayush, 2026-11-17: "calls made, calls connected to real human, positive respone, meeting".
+  call: [
+    { key: 'callsMade', label: 'Calls made', hint: DEFS.callsMade, board: true },
+    { key: 'callsConnected', label: 'Calls connected', note: 'a person picked up', hint: DEFS.callsConnected, board: true },
+    // Ayush, 2026-11-17: "Conversations (60+ seconds)", just below calls connected.
+    { key: 'conversations', label: 'Conversations', note: '60+ seconds', hint: DEFS.conversations, board: true },
+    { key: 'callPositive', label: 'Positive responses', hint: DEFS.positiveCall, board: true, outcome: 'positive' },
+    { key: 'callMeetings', label: 'Meetings booked', hint: DEFS.meetingsCall, board: true, outcome: 'meetings' },
+  ],
 };
+
+/** What each channel is called on screen. */
+export const CHANNEL_NAMES = { email: 'Email', linkedin: 'LinkedIn', call: 'Call' };
 
 /**
  * Each channel's rates on the SDR page (Ayush's manager, 2026-11-10: the % rows of
  * the SDR output sheet), worked out on the server from the definitions the Overview's
- * % cards use (emailRates, linkedinRates): `count` over `base`, as `hint` says.
+ * % cards use (emailRates, linkedinRates, callRates): `count` over `base`, as `hint` says.
  */
 export const RATES = {
   email: [
@@ -50,6 +62,12 @@ export const RATES = {
     { key: 'acceptanceRate', label: 'Acceptance %', count: 'invitesAccepted', base: 'invitesSent', unit: 'invites sent', digits: 1, hint: DEFS.formulaAcceptance, rate: true },
     { key: 'linkedinPositiveRate', label: 'Positive response %', count: 'linkedinPositive', base: 'invitesSent', unit: 'invites sent', digits: 2, hint: DEFS.formulaPositiveLinkedin, rate: true },
     { key: 'linkedinMeetingRate', label: 'Meetings booked %', count: 'linkedinMeetings', base: 'invitesSent', unit: 'invites sent', digits: 2, hint: DEFS.formulaMeetingLinkedin, rate: true },
+  ],
+  call: [
+    { key: 'callConnectRate', label: 'Connect %', count: 'callsConnected', base: 'callsMade', unit: 'calls made', digits: 1, hint: DEFS.formulaConnect, rate: true },
+    { key: 'callTalkRate', label: 'Talk %', count: 'conversations', base: 'callsMade', unit: 'calls made', digits: 1, hint: DEFS.formulaTalk, rate: true },
+    { key: 'callPositiveRate', label: 'Positive response %', count: 'callPositive', base: 'callsMade', unit: 'calls made', digits: 2, hint: DEFS.formulaPositiveCall, rate: true },
+    { key: 'callMeetingRate', label: 'Meetings booked %', count: 'callMeetings', base: 'callsMade', unit: 'calls made', digits: 2, hint: DEFS.formulaMeetingCall, rate: true },
   ],
 };
 

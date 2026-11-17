@@ -476,7 +476,7 @@ export function accountColumns() {
   ];
 }
 
-export const POSITIVE_SOURCE = { sheet: 'Sheet', booked: 'Booked meeting', labels: 'Reply label' };
+export const POSITIVE_SOURCE = { sheet: 'Sheet', booked: 'Booked meeting', labels: 'Reply label', nooks: 'Marked in Nooks' };
 
 /**
  * The positive responses behind a range and what each person said. SDR rows are

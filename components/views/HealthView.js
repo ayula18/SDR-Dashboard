@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, LoaderCircle, RefreshCw } from 'lucide-rea
 import { useDashboard } from '@/lib/client/dashboard-context';
 import { fmtDate, fmtDateRange, fmtInt, fmtPct, fmtRelative } from '@/lib/client/format';
 import { apiFetch, clearApiCache, useApi } from '@/lib/client/use-api';
+import { ROLES, ROLE_LABELS } from '@/lib/outreach/roles';
 import Badge from '../ui/Badge';
 import Card from '../ui/Card';
 import DataTable from '../ui/DataTable';
@@ -86,9 +87,7 @@ function RosterControls({ member, onSaved }) {
         disabled={state.busy}
         onChange={e => save({ role: e.target.value })}
       >
-        <option value="sdr">SDR</option>
-        <option value="sdr_extra">SDR, shown only when picked</option>
-        <option value="other">Not an SDR</option>
+        {ROLES.map(role => <option key={role} value={role}>{ROLE_LABELS[role]}</option>)}
       </select>
       <input
         aria-label={`Other spellings of ${member.name}`}
@@ -255,7 +254,7 @@ export default function HealthView() {
     { key: 'name', label: 'Name', sort: r => r.name, csv: r => r.name },
     isAdmin
       ? { key: 'role', label: 'Role and other spellings', sortable: false, csv: r => r.role, render: r => <RosterControls member={r} onSaved={refresh} /> }
-      : { key: 'role', label: 'Role', csv: r => r.role, render: r => ({ sdr: 'SDR', sdr_extra: 'SDR, shown only when picked' }[r.role] || 'Not an SDR') },
+      : { key: 'role', label: 'Role', csv: r => r.role, render: r => ROLE_LABELS[r.role] || ROLE_LABELS.other },
     !isAdmin && { key: 'aliases', label: 'Other spellings', sortable: false, csv: r => (r.aliases || []).join('; '), render: r => (r.aliases || []).join(', ') || '–' },
     { key: 'campaignsLast90Days', label: 'Campaigns, last 90 days', align: 'right', csv: r => r.campaignsLast90Days, render: r => fmtInt(r.campaignsLast90Days) },
   ].filter(Boolean);

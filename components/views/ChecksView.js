@@ -6,6 +6,7 @@ import { useDashboard } from '@/lib/client/dashboard-context';
 import { fmtDate } from '@/lib/client/format';
 import { apiFetch, clearApiCache, useApi } from '@/lib/client/use-api';
 import { useFilters } from '@/lib/client/use-filters';
+import { isOutreachRole } from '@/lib/outreach/roles';
 import Card from '../ui/Card';
 import FilterBar from '../ui/FilterBar';
 import PageHeader from '../ui/PageHeader';
@@ -43,7 +44,7 @@ export default function ChecksView() {
   const { apiParams } = useFilters();
   const { meta } = useDashboard();
   const { data, error, loading, refreshing, reload } = useApi('/api/meetings/checks', apiParams);
-  const sdrs = (meta?.team || []).filter(t => t.role === 'sdr' || t.role === 'sdr_extra').map(t => t.name);
+  const sdrs = (meta?.team || []).filter(t => isOutreachRole(t.role)).map(t => t.name);
   const checks = data?.checks || [];
 
   return (
