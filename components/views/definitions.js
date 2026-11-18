@@ -55,5 +55,6 @@ export const DEFS = {
   formulaPositiveCall: 'Positive responses ÷ calls made × 100',
   formulaMeetingCall: 'Meetings booked ÷ calls made × 100',
   compareDates: 'These stay on the latest full periods, whatever dates are picked above.',
-  workingDays: 'Working days only: weekend sends count in weeks and months, not here.',
+  days: 'Every day, Saturday and Sunday too, which stay unshaded. Days are UTC, 05:30 to 05:30 IST, so an SDR\'s US-hours shift is one day: a booking at 00:40 IST on Saturday is Friday\'s.',
+  weekend: 'a weekend day, unshaded so it does not wash out the difference between weekdays',
 };

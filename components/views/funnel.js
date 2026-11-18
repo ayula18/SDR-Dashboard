@@ -75,7 +75,7 @@ export const rateFormulas = channel => RATES[channel]
 export const metricLabel = m => (m.note ? `${m.label} (${m.note})` : m.label);
 
 export const COMPARISONS = [
-  { key: 'day', label: 'DoD', title: 'day on day', last: 'the last two full working days', unit: 'working days' },
+  { key: 'day', label: 'DoD', title: 'day on day', last: 'the last two full days', unit: 'days' },
   { key: 'week', label: 'WoW', title: 'week on week', last: 'the last two full weeks', unit: 'weeks' },
   { key: 'month', label: 'MoM', title: 'month on month', last: 'the last two full months', unit: 'months' },
 ];

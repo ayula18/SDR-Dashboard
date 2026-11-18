@@ -11,7 +11,7 @@ import { DEFS } from './definitions';
 import { ComparisonButtons, FUNNEL, RATES } from './funnel';
 
 /**
- * What the period pages share, the Overview and SDR Detailed - Metrics: a column per working day,
+ * What the period pages share, the Overview and SDR Detailed - Metrics: a column per day,
  * week or month (`periodColumns` on the server, `/api/metrics/funnel`), one set of
  * controls above them all, and the same headings, shading and wording, so the two pages
  * read alike and cannot drift apart.
@@ -25,9 +25,9 @@ export const PEOPLE = {
   call: { one: 'Person', many: 'SDRs and callers' },
 };
 const GRAINS = ['day', 'week', 'month'];
-const UNIT = { day: 'working day', week: 'week', month: 'month' };
+const UNIT = { day: 'day', week: 'week', month: 'month' };
 // What the range menu calls "no dates picked": the server's last full periods (WINDOW in lib/metrics/funnel.js).
-const LATEST = { day: 'Last 20 working days', week: 'Last 12 full weeks', month: 'Last 12 full months' };
+const LATEST = { day: 'Last 28 days', week: 'Last 12 full weeks', month: 'Last 12 full months' };
 const RUNNING = ['today', 'wtd', 'mtd'];
 
 /** A channel's rows: the counts, then the rates. */
@@ -50,7 +50,7 @@ export function heading(grain, c, readAt) {
   if (c.kind === 'mtd') return { label: `MTD (${span(c.from, c.to)})`, hint: 'Month to date: this month so far, still running' };
   const name = fmtPeriod(grain, c.period, { long: true });
   if (c.kind === 'part') return { label: span(c.from, c.to), hint: `${name}, only the days inside the dates picked` };
-  return { label: fmtPeriod(grain, c.period, { long: grain === 'day' }), hint: name };
+  return { label: fmtPeriod(grain, c.period, { long: grain === 'day' }), hint: c.weekend ? `${name}: ${DEFS.weekend}` : name };
 }
 
 /** A column in words, for the list a count opens: "Week of 6 Jul, 8–12 Jul", "Month to date, 1–17 Nov". */
@@ -61,11 +61,14 @@ export function columnName(grain, c) {
   return c.kind === 'part' ? `${name}, ${span(c.from, c.to)}` : name;
 }
 
-/** Which columns are whole periods (on the colour scale), periods (whole or cut short) and the running one. */
+/**
+ * Which columns are whole periods on the colour scale (not a Saturday or Sunday in DoD:
+ * `weekend` from periodColumns), periods (whole or cut short) and the running one.
+ */
 export function columnKinds(columns) {
   const at = test => columns.flatMap((c, i) => (test(c) ? [i] : []));
   return {
-    whole: at(c => c.kind === 'full'),
+    whole: at(c => c.kind === 'full' && !c.weekend),
     periods: at(c => c.kind === 'full' || c.kind === 'part'),
     running: columns.findIndex(c => RUNNING.includes(c.kind)),
   };
@@ -76,8 +79,8 @@ export function columnKinds(columns) {
  * sort of with soft pastel colors just like our excel"): its lowest value lightest, its
  * highest deepest. Rows never share a scale, since emails, counts and rates are different
  * sizes. Only whole periods are on the scale: a period the dates cut short, or today, WTD
- * or MTD still running, would read as a bad one. Nothing to tell apart, or a missing rate,
- * stays unshaded.
+ * or MTD still running, would read as a bad one, and so would a weekend day in DoD.
+ * Nothing to tell apart, or a missing rate, stays unshaded.
  */
 export function shadeScale(values) {
   const known = values.filter(v => v != null);
@@ -100,7 +103,7 @@ export function columnsPhrase({ grain, columns, picked, readAt }) {
     const phrase = { today: 'today so far', wtd: 'WTD, this week so far', mtd: 'MTD, this month so far' }[columns[running].kind];
     text += ` Then ${phrase}, unshaded while it runs${readAt ? `, as read by ${fmtDateTime(readAt)}` : ''}.`;
   }
-  if (grain === 'day') text += ` ${DEFS.workingDays}`;
+  if (grain === 'day') text += ` ${DEFS.days}`;
   return text;
 }
 

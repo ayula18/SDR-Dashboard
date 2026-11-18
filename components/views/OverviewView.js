@@ -74,7 +74,7 @@ function boardFootnote(view, channel, openOutcomes, canFix) {
  * One channel as the manager's SDR output sheet lays it out (Ayush, 2026-11-10: "the
  * columns represent DOD or WOW and all the numbers... keep sdr as a variable so i can
  * select the sdr mix by myself"): a row per number, counts then rates, and a column per
- * working day, week or month, oldest on the left, each the sum of the people picked (the
+ * day, week or month, oldest on the left, each the sum of the people picked (the
  * SDRs, or on Call the callers, until someone is picked: then the same people in every box).
  * With no dates picked, the last full periods; with dates, the periods inside them (Ayush,
  * 2026-11-17: "if i choose a custom range for july it should show me july's DOD or WOW").
@@ -174,7 +174,7 @@ export default function OverviewView() {
     <div className="page">
       <PageHeader
         title="Overview"
-        description="Calls on Nooks, email and LinkedIn, a box each, for the same days and people: a column per working day, week or month, then today, this week or this month so far."
+        description="Calls on Nooks, email and LinkedIn, a box each, for the same days and people: a column per day, week or month, then today, this week or this month so far."
         meta={<SyncStatus />}
       />
       <PageControls settings={settings} />

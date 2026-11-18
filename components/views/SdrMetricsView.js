@@ -39,8 +39,8 @@ const RUNNING_EDGE = 'inset 1px 0 0 var(--border)';
 
 /**
  * One section: for each number a Total row (the people added together, rates from the
- * sums) and a row per person under it, a column per working day, week or month, as in the
- * sheet. Every row is shaded on its own scale, whole periods only.
+ * sums) and a row per person under it, a column per day, week or month, as in the
+ * sheet. Every row is shaded on its own scale, whole periods only, weekend days left out.
  */
 function MetricsSection({ section, settings, openOutcomes }) {
   const { channel, title, metrics } = section;
