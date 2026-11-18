@@ -33,11 +33,13 @@ test('outreach meetings: no metrics query has its own rule for which meetings co
 
 test('outreach meetings: the cards count meetings per platform, in the range, moved slots once', () => {
   const rows = [
-    { date: '2026-10-05', platform: 'instantly', rescheduled: false },
-    { date: '2026-10-06', platform: 'heyreach', rescheduled: false },
-    { date: '2026-10-07', platform: 'instantly', rescheduled: true },
-    { date: '2026-10-08', platform: null, rescheduled: false },
-    { date: '2026-09-30', platform: 'instantly', rescheduled: false },
+    { date: '2026-10-05', bookedOn: '2026-10-05', platform: 'instantly', rescheduled: false },
+    { date: '2026-10-06', bookedOn: '2026-10-06', platform: 'heyreach', rescheduled: false },
+    { date: '2026-10-07', bookedOn: '2026-10-07', platform: 'instantly', rescheduled: true },
+    { date: '2026-10-08', bookedOn: '2026-10-08', platform: null, rescheduled: false },
+    { date: '2026-09-30', bookedOn: '2026-09-30', platform: 'instantly', rescheduled: false },
   ];
   assert.deepEqual(meetingsByPlatform(rows, { from: '2026-10-05', toExclusive: '2026-10-12' }), { email: 1, linkedin: 1 });
+  // Booked in the range for a meeting after it: counted in the range (Ayush, 2026-11-17).
+  assert.deepEqual(meetingsByPlatform([{ date: '2026-10-14', bookedOn: '2026-10-09', platform: 'instantly', rescheduled: false }], { from: '2026-10-05', toExclusive: '2026-10-12' }), { email: 1, linkedin: 0 });
 });

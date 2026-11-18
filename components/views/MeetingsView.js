@@ -46,7 +46,7 @@ export default function MeetingsView() {
     <div className="page">
       <PageHeader
         title="Meetings"
-        description={'Every meeting SDR outreach booked, by meeting date, with the SDR and campaign it\'s credited to. AE, inbound, referral and marketing meetings are left out. '
+        description={'Every meeting SDR outreach booked, on the day it was booked, with the SDR and campaign it\'s credited to. AE, inbound, referral and marketing meetings are left out. '
           + 'Who booked it is the HubSpot form\'s word, then the meetings audit sheet\'s; bookings also come from the booking bot\'s Slack alert and HubSpot\'s meetings. Anything unsettled is on Meeting checks.'}
         meta={<SyncStatus />}
       />

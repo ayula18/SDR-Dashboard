@@ -369,7 +369,19 @@ WHERE NOT base.internal;
 -- lib/metrics/sql.js). A record that is a repeat of another (merged_into) is left out; a
 -- booking that moved keeps its row, rescheduled, with the credit of the meeting.
 CREATE VIEW dash_v_meetings AS
-WITH m AS (
+-- When each meeting was booked, from the records the meeting credit made one meeting
+-- (merged_into): the earliest time a source recorded the booking (036: the Slack alert,
+-- a HubSpot meeting's creation), and which source that was.
+WITH booked AS (
+  SELECT COALESCE(rc.merged_into, r.id) AS kept,
+         min(r.booked_at) AS booked_at,
+         (array_agg(r.source ORDER BY r.booked_at))[1] AS booked_from
+    FROM dash_meetings r
+    LEFT JOIN dash_meeting_credit rc ON rc.meeting_id = r.id
+   WHERE r.booked_at IS NOT NULL
+   GROUP BY 1
+),
+m AS (
   SELECT
     COALESCE(cr.company_domain, cd.canonical_domain, dm.company_domain) AS company_domain,
     dm.company_domain AS company_domain_raw,
@@ -385,6 +397,15 @@ WITH m AS (
     -- The day the form's deal was made, when that can be the booking (028): it dates a
     -- booked positive. Who booked is the credit's, not this.
     form.booked_on AS form_booked_on,
+    -- The day the meeting was BOOKED, the day every "Meetings booked" number counts it on
+    -- (Ayush, 2026-11-17: a meeting dated by the day it happens put Ahmed's booking of 16 Nov
+    -- on 17 Nov): the booking time a source recorded (UTC day, as every day here), else the
+    -- form's booking day, else the meeting day; never after the meeting. booked_from says
+    -- which: slack | hubspot | form | meeting.
+    LEAST(COALESCE((bk.booked_at AT TIME ZONE 'UTC')::date, form.booked_on, dm.meeting_date), dm.meeting_date) AS booked_on,
+    CASE WHEN bk.booked_at IS NOT NULL THEN bk.booked_from
+         WHEN form.booked_on IS NOT NULL THEN 'form'
+         ELSE 'meeting' END AS booked_from,
     cr.merged_into, cr.sdrs, cr.shares, cr.campaign_id AS credit_campaign_id,
     COALESCE(cr.booking_by, 'unknown') AS booking_by,
     cr.channel AS outreach_channel, cr.who_by, cr.who_sure, cr.where_rung, cr.where_sure,
@@ -392,6 +413,7 @@ WITH m AS (
   FROM dash_meetings dm
   LEFT JOIN dash_company_domains cd ON cd.domain = dm.company_domain
   LEFT JOIN dash_meeting_credit cr ON cr.meeting_id = dm.id
+  LEFT JOIN booked bk ON bk.kept = dm.id
   LEFT JOIN dash_internal_domains idom ON idom.domain = COALESCE(cr.company_domain, cd.canonical_domain, dm.company_domain)
   LEFT JOIN LATERAL (
     SELECT f.booked_on

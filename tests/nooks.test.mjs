@@ -63,7 +63,7 @@ test('calls add up by day and caller, with the rates worked out from the sums', 
     grain: 'day',
     periods: ['2026-11-10', '2026-11-11'],
     email: [], linkedin: [], emailOutcomeRows: [], linkedinOutcomeRows: [], meetings: [
-      { date: '2026-11-11', sdr: 'Pranesh', platform: null, outreachChannel: 'call', share: 1 },
+      { date: '2026-11-11', bookedOn: '2026-11-11', sdr: 'Pranesh', platform: null, outreachChannel: 'call', share: 1 },
     ],
     callRows: [
       { key: '2026-11-10|Pranesh', callsMade: 150, callsConnected: 14, conversations: 3 },

@@ -177,6 +177,32 @@ test('a job part-way through a pass, or one that never finished, is still due', 
   assert.equal(isDue(job, {}, NOW), true, 'no history at all runs everything rather than nothing');
 });
 
+test('the reads behind a day run on the first call after UTC midnight, then keep the 6-hour clock', () => {
+  const midnight = Date.UTC(2026, 10, 18); // 18 Nov 05:30 IST
+  const at = (h, m = 0) => midnight + (h * 60 + m) * 60_000;
+  const closes = { name: 'instantly-periods', closesDay: true };
+  const other = { name: 'reply-verdicts' };
+  const ran = (job, when) => ({ [job.name]: { lastSuccessAt: new Date(when).toISOString() } });
+
+  // Last read at 03:02 IST, mid-shift: due at 05:45 IST, not at 09:02.
+  assert.equal(isDue(closes, ran(closes, at(-2, -28)), at(0, 15)), true);
+  assert.equal(isDue(other, ran(other, at(-2, -28)), at(0, 15)), false, 'only the day-closing reads');
+  // Read once after midnight: the 6-hour clock again until the next midnight.
+  assert.equal(isDue(closes, ran(closes, at(0, 15)), at(5, 30)), false);
+  assert.equal(isDue(closes, ran(closes, at(0, 15)), at(6, 15)), true);
+  assert.equal(isDue(closes, ran(closes, at(18, 15)), at(23, 59)), false);
+  assert.equal(isDue(closes, ran(closes, at(18, 15)), at(24, 1)), true);
+});
+
+test('every read a table waits on to call a day whole closes the day', async () => {
+  const { VOLUME_JOBS } = await import('../lib/metrics/funnel.js');
+  const needed = new Set([...Object.values(VOLUME_JOBS).flat(), 'instantly-campaigns', 'instantly-leads']);
+  for (const name of needed) {
+    assert.ok(REAL_JOBS[name], `${name} is a job`);
+    assert.equal(REAL_JOBS[name].closesDay, true, `${name} must read past midnight first thing`);
+  }
+});
+
 test('leaving a job alone can never raise the stale warning on the dashboard', () => {
   // meta.js flags a job past maxAgeHours, and a pass can take a few calls to finish.
   for (const [name, job] of Object.entries(REAL_JOBS)) {

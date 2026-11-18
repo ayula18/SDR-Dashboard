@@ -385,7 +385,9 @@ export function campaignResults(r) {
 
 export function meetingColumns({ teamColor, withFilters, withSdr = true }) {
   return [
-    { key: 'date', label: 'Date', sort: r => r.date, csv: r => r.date, render: r => <span className="nowrap">{fmtDate(r.date, { year: true })}</span> },
+    // Booked is the day every count puts it on (Ayush, 2026-11-17); Meeting is when it happens.
+    { key: 'bookedOn', label: 'Booked', sort: r => r.bookedOn || r.date, csv: r => r.bookedOn || '', render: r => <span className="nowrap">{r.bookedOn ? fmtDate(r.bookedOn, { year: true }) : '–'}</span> },
+    { key: 'date', label: 'Meeting', sort: r => r.date, csv: r => r.date, render: r => <span className="nowrap">{fmtDate(r.date, { year: true })}</span> },
     {
       key: 'company',
       label: 'Company',

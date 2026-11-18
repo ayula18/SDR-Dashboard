@@ -98,10 +98,10 @@ test('one row per period and SDR, with both email counts and each meeting on its
     emailOutcomeRows: [{ key: '2026-10-26|Akhil', replied: 3, positive: 1 }],
     linkedinOutcomeRows: [{ key: '2026-10-26|Akhil', replied: 2, positive: 2 }],
     meetings: [
-      { date: '2026-10-28', sdr: 'Akhil', platform: 'instantly' },
-      { date: '2026-10-29', sdr: 'Akhil', platform: 'heyreach' },
-      { date: '2026-10-30', sdr: 'Akhil', platform: null },
-      { date: '2026-10-30', sdr: null, platform: 'instantly' },
+      { date: '2026-10-28', bookedOn: '2026-10-28', sdr: 'Akhil', platform: 'instantly' },
+      { date: '2026-10-29', bookedOn: '2026-10-29', sdr: 'Akhil', platform: 'heyreach' },
+      { date: '2026-10-30', bookedOn: '2026-10-30', sdr: 'Akhil', platform: null },
+      { date: '2026-10-30', bookedOn: '2026-10-30', sdr: null, platform: 'instantly' },
     ],
   });
   const akhil = rows.find(r => r.sdr === 'Akhil');
@@ -120,7 +120,7 @@ test('one row per period and SDR, with both email counts and each meeting on its
 test('days add up to the same funnel as the week they fall in', () => {
   const week = { grain: 'week', periods: ['2026-10-26'] };
   const days = { grain: 'day', periods: ['2026-10-26', '2026-10-27'] };
-  const meetings = [{ date: '2026-10-26', sdr: 'Rama', platform: 'heyreach' }, { date: '2026-10-27', sdr: 'Rama', platform: 'heyreach' }];
+  const meetings = [{ date: '2026-10-26', bookedOn: '2026-10-26', sdr: 'Rama', platform: 'heyreach' }, { date: '2026-10-27', bookedOn: '2026-10-27', sdr: 'Rama', platform: 'heyreach' }];
   const byWeek = sumFunnel(mergeFunnel({ ...empty, ...week, meetings, emailOutcomeRows: [{ key: '2026-10-26|Rama', replied: 3, positive: 2 }] }));
   const byDay = sumFunnel(mergeFunnel({
     ...empty,
@@ -140,7 +140,7 @@ test('the SDR page\'s rates: email per first email, LinkedIn per invite sent, fr
     linkedin: [{ key: '2026-11-02|Akhil', invitesSent: 3102, invitesAccepted: 584, messagesSent: 0 }],
     emailOutcomeRows: [{ key: '2026-11-03|Akhil', replied: 4, positive: 2 }],
     linkedinOutcomeRows: [{ key: '2026-11-02|Akhil', replied: 1, positive: 1 }],
-    meetings: [{ date: '2026-11-02', sdr: 'Akhil', platform: 'instantly' }, { date: '2026-11-03', sdr: 'Akhil', platform: 'instantly' }],
+    meetings: [{ date: '2026-11-02', bookedOn: '2026-11-02', sdr: 'Akhil', platform: 'instantly' }, { date: '2026-11-03', bookedOn: '2026-11-03', sdr: 'Akhil', platform: 'instantly' }],
   });
   const total = sumFunnel(rows);
   assert.equal(total.emailPositiveRate, 0.16, '2 of 1,214 first emails, not of the 3,400 emails with follow-ups');
@@ -215,4 +215,29 @@ test('every percentage on the rate cards prints its formula', () => {
     assert.match(card, new RegExp(`DEFS\\.${name}`));
   }
   assert.match(card, /\{s\.formula\}/);
+});
+
+// Ayush, 2026-11-17: Ahmed booked eG Innovations on 16 Nov for 17 Nov and the dashboard put
+// it on the 17th. "Meetings booked" counts a meeting on the day it was booked.
+test('a meeting counts on the day it was booked, not the day it happens', () => {
+  const rows = mergeFunnel({
+    grain: 'day', periods: ['2026-11-16', '2026-11-17'],
+    email: [], linkedin: [], emailOutcomeRows: [], linkedinOutcomeRows: [],
+    meetings: [{ date: '2026-11-17', bookedOn: '2026-11-16', sdr: 'Ahmed', platform: 'instantly', outreachChannel: 'email', share: 1 }],
+  });
+  assert.deepEqual(rows.map(r => [r.period, r.sdr, r.emailMeetings]), [['2026-11-16', 'Ahmed', 1]]);
+});
+
+test('the booking day is defined once, in dash_v_meetings, and every count reads it', () => {
+  const views = readFileSync(new URL('../db/migrations/900_dash_views.sql', import.meta.url), 'utf8');
+  assert.match(views, /LEAST\(COALESCE\(\(bk\.booked_at AT TIME ZONE 'UTC'\)::date, form\.booked_on, dm\.meeting_date\), dm\.meeting_date\) AS booked_on/,
+    'the recorded booking time, else the form\'s booking day, else the meeting day; never after the meeting');
+  const code = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  assert.match(code('lib/metrics/core.js'), /m\.booked_on >= \$\{p\.add\(range\.from\)\}/, 'meetingTotals ranges on the booking day');
+  assert.match(code('lib/metrics/meetings.js'), /m\.booked_on >= \$\{p\.add\(filters\.from\)\}/, 'listMeetings ranges on the booking day');
+  for (const file of ['lib/metrics/trends.js', 'lib/metrics/meetings.js']) {
+    assert.doesNotMatch(code(file), /bucket\([^)]*'m\.meeting_date'\)/, `${file} buckets meetings by the day they happen`);
+  }
+  assert.match(code('lib/sync/slack-meetings.js'), /booked_at\s+= u\.booked_at/, 'the alert writes when it was booked');
+  assert.match(code('lib/sync/hubspot-meetings.js'), /hs_createdate/, 'HubSpot meetings carry when they were booked');
 });

@@ -38,9 +38,12 @@ function MeetingRow({ row }) {
     <>
       <span className="company-list-head">
         <span className="company-name">{row.company || 'Company not named'}</span>
-        <span className="cell-sub nowrap">{fmtDate(row.at, { year: true })}</span>
+        {/* Counted on the day it was booked; where no source recorded that, on the meeting day, and it says so. */}
+        <span className="cell-sub nowrap">
+          {row.bookedFrom === 'meeting' ? `Booking day not recorded, counted ${fmtDate(row.at, { year: true })}` : `Booked ${fmtDate(row.bookedOn || row.at, { year: true })}`}
+        </span>
       </span>
-      <span className="cell-sub">{[row.sdr, row.campaign || NO_CAMPAIGN[row.channel] || 'No campaign', MEETING_STATUS[row.outcome]].filter(Boolean).join(', ')}</span>
+      <span className="cell-sub">{[row.sdr, row.campaign || NO_CAMPAIGN[row.channel] || 'No campaign', `meeting ${fmtDate(row.at)}`, MEETING_STATUS[row.outcome]].filter(Boolean).join(', ')}</span>
       {row.name && <span className="cell-sub"><strong>{row.name}</strong></span>}
       {said(row)}
       {row.reason && <span className="cell-sub muted">Why: {row.reason}</span>}

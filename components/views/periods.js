@@ -136,12 +136,16 @@ export const funnelQuery = ({ grain, sdr, dates }, channel) => ({
   ...(dates.from ? { from: dates.from, to: dates.to } : dates.range ? { range: dates.range } : {}),
 });
 
-/** DoD / WoW / MoM, who, and dates, once, above the tables ("DOD WOW MOM and then, sdr picking option and then custom range and thats it"). */
-export function PageControls({ settings }) {
+/**
+ * DoD / WoW / MoM, who, and dates, once, above the tables ("DOD WOW MOM and then, sdr picking
+ * option and then custom range and thats it"). Snapshot View has no periods: `withGrain`
+ * false, and `emptyLabel` names its default dates.
+ */
+export function PageControls({ settings, withGrain = true, emptyLabel = null }) {
   const { meta } = useDashboard();
   return (
     <div className="filters" role="group" aria-label="What every table shows">
-      <ComparisonButtons value={settings.grain} onChange={settings.setGrain} />
+      {withGrain && <ComparisonButtons value={settings.grain} onChange={settings.setGrain} />}
       <MultiSelect
         label="People"
         allLabel="All SDRs"
@@ -149,7 +153,7 @@ export function PageControls({ settings }) {
         value={settings.sdr ? settings.sdr.split(',').filter(Boolean) : []}
         onChange={settings.setSdr}
       />
-      <RangePicker value={settings.dates} onChange={settings.setDates} emptyLabel={LATEST[settings.grain]} />
+      <RangePicker value={settings.dates} onChange={settings.setDates} emptyLabel={emptyLabel || LATEST[settings.grain]} />
     </div>
   );
 }

@@ -7,11 +7,11 @@ import { DEFAULT_SEQUENCE, JOBS } from '../lib/sync/jobs.js';
 
 // formance.com: the audit sheet splits it, so dash_v_meetings gives one row per SDR at half each.
 const formance = [
-  { id: 'm1', date: '2026-08-24', sdr: 'Akhil', share: 0.5, platform: 'heyreach', held: true },
-  { id: 'm1', date: '2026-08-24', sdr: 'Dheeraj', share: 0.5, platform: 'heyreach', held: true },
+  { id: 'm1', date: '2026-08-24', bookedOn: '2026-08-24', sdr: 'Akhil', share: 0.5, platform: 'heyreach', held: true },
+  { id: 'm1', date: '2026-08-24', bookedOn: '2026-08-24', sdr: 'Dheeraj', share: 0.5, platform: 'heyreach', held: true },
 ];
-const other = { id: 'm2', date: '2026-08-25', sdr: 'Akhil', share: 1, platform: 'instantly', held: false };
-const moved = { id: 'm3', date: '2026-08-20', sdr: 'Rama', share: 1, platform: 'heyreach', rescheduled: true };
+const other = { id: 'm2', date: '2026-08-25', bookedOn: '2026-08-25', sdr: 'Akhil', share: 1, platform: 'instantly', held: false };
+const moved = { id: 'm3', date: '2026-08-20', bookedOn: '2026-08-20', sdr: 'Rama', share: 1, platform: 'heyreach', rescheduled: true };
 
 test('a split meeting is one meeting in a total, and half for each SDR', () => {
   assert.equal(totalsFromMeetings([...formance, other, moved]).meetings, 2);
